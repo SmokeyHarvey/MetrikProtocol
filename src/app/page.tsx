@@ -4,11 +4,22 @@ import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useState, useEffect } from 'react';
+import { ethers } from "ethers";
+import metrikAbi from "@/lib/contracts/abis/MockERC20.json";
+import usdcAbi from "@/lib/contracts/abis/MockERC20.json";
+import faucetAbi from "@/lib/contracts/abis/Faucet.json";
+
+const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
+const FAUCET_ADDRESS = "0x047B41c1E11331f7C8BB8Cc2343b34Ec1336772D";
 
 export default function Home() {
   const router = useRouter();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const [selectedRole, setSelectedRole] = useState<'supplier' | 'lp' | 'owner' | null>(null);
+  const [metrikAmount, setMetrikAmount] = useState("");
+  const [usdcAmount, setUsdcAmount] = useState("");
+  const [faucetLoading, setFaucetLoading] = useState(false);
 
   const handleRoleSelect = (role: 'supplier' | 'lp' | 'owner') => {
     setSelectedRole(role);
@@ -25,6 +36,35 @@ export default function Home() {
       }
     }
   }, [isConnected, selectedRole, router]);
+
+  async function claimToken(token: "metrik" | "usdc") {
+    if (!window.ethereum || !address) {
+      alert("Connect your wallet first.");
+      return;
+    }
+    setFaucetLoading(true);
+    try {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const faucet = new ethers.Contract(FAUCET_ADDRESS, faucetAbi, signer);
+      const tokenAddress = token === "metrik" ? METRIK_ADDRESS : USDC_ADDRESS;
+      const amountStr = token === "metrik" ? metrikAmount : usdcAmount;
+      if (!amountStr || isNaN(Number(amountStr)) || Number(amountStr) <= 0) {
+        alert("Enter a valid amount");
+        setFaucetLoading(false);
+        return;
+      }
+      const decimals = token === "metrik" ? 18 : 6;
+      const amount = ethers.utils.parseUnits(amountStr, decimals);
+      const tx = await faucet.claim(tokenAddress, amount);
+      await tx.wait();
+      alert(`${token.toUpperCase()} claimed from faucet!`);
+    } catch (err: any) {
+      alert(err.message || "Claim failed");
+    } finally {
+      setFaucetLoading(false);
+    }
+  }
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-gray-100">
@@ -102,6 +142,52 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Faucet Section */}
+            <div className="mt-8 border-t pt-6">
+              <h2 className="text-xl font-semibold mb-4">Faucet: Mint Test Tokens</h2>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="flex flex-col items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="Amount of Metrik"
+                    value={metrikAmount}
+                    onChange={e => setMetrikAmount(e.target.value)}
+                    className="border rounded px-3 py-2 mb-2 w-40"
+                    disabled={faucetLoading}
+                  />
+                  <button
+                    onClick={() => claimToken("metrik")}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
+                    disabled={faucetLoading || !isConnected}
+                  >
+                    Mint Metrik
+                  </button>
+                </div>
+                <div className="flex flex-col items-center">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="Amount of USDC"
+                    value={usdcAmount}
+                    onChange={e => setUsdcAmount(e.target.value)}
+                    className="border rounded px-3 py-2 mb-2 w-40"
+                    disabled={faucetLoading}
+                  />
+                  <button
+                    onClick={() => claimToken("usdc")}
+                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                    disabled={faucetLoading || !isConnected}
+                  >
+                    Mint USDC
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">You can mint any amount of test tokens to your wallet.</p>
+            </div>
           </div>
         </div>
       </div>
