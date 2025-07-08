@@ -24,7 +24,7 @@ export default function LPDepositPage() {
     setLoading(true);
     try {
       const provider = new BrowserProvider(window.ethereum);
-      const signer = provider.getSigner();
+      const signer = await provider.getSigner();
       const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         alert("Enter a valid amount");
