@@ -16,12 +16,12 @@ const FAUCET_ADDRESS = "0x047B41c1E11331f7C8BB8Cc2343b34Ec1336772D";
 export default function Home() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const [selectedRole, setSelectedRole] = useState<'supplier' | 'lp' | 'owner' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'supplier' | 'lp' | 'verifier' | null>(null);
   const [metrikAmount, setMetrikAmount] = useState("");
   const [usdcAmount, setUsdcAmount] = useState("");
   const [faucetLoading, setFaucetLoading] = useState(false);
 
-  const handleRoleSelect = (role: 'supplier' | 'lp' | 'owner') => {
+  const handleRoleSelect = (role: 'supplier' | 'lp' | 'verifier') => {
     setSelectedRole(role);
   };
 
@@ -31,7 +31,7 @@ export default function Home() {
         router.push('/dashboard/supplier/staking');
       } else if (selectedRole === 'lp') {
         router.push('/dashboard/lp/deposit');
-      } else if (selectedRole === 'owner') {
+      } else if (selectedRole === 'verifier') {
         router.push('/dashboard/owner');
       }
     }
@@ -117,9 +117,9 @@ export default function Home() {
               </button>
 
               <button
-                onClick={() => handleRoleSelect('owner')}
+                onClick={() => handleRoleSelect('verifier')}
                 className={`group relative flex flex-col items-center p-6 bg-white border ${
-                  selectedRole === 'owner' 
+                  selectedRole === 'verifier' 
                     ? 'border-indigo-500 ring-2 ring-indigo-500' 
                     : 'border-gray-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500'
                 } rounded-lg transition-all`}
@@ -129,7 +129,7 @@ export default function Home() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">Contract Owner</h3>
+                <h3 className="text-lg font-medium text-gray-900">Verifier</h3>
                 <p className="mt-2 text-sm text-gray-500">Verify invoices and manage protocol</p>
               </button>
             </div>

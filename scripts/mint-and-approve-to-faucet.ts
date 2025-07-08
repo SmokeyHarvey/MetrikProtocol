@@ -27,8 +27,8 @@ async function main() {
   await tx.wait();
   console.log(`Minted METRIK. Tx: ${tx.hash}`);
 
-  // Approve METRIK to Faucet
-  console.log(`Approving Faucet to spend METRIK...`);
+  // Approve METRIK to Faucet (full 1,000,000 METRIK)
+  console.log(`Approving Faucet to spend ${METRIK_AMOUNT} METRIK...`);
   tx = await metrik.approve(FAUCET_ADDRESS, metrikAmount);
   await tx.wait();
   console.log(`Approved METRIK. Tx: ${tx.hash}`);
@@ -42,8 +42,8 @@ async function main() {
   await tx.wait();
   console.log(`Minted USDC. Tx: ${tx.hash}`);
 
-  // Approve USDC to Faucet
-  console.log(`Approving Faucet to spend USDC...`);
+  // Approve USDC to Faucet (full 1,000,000 USDC)
+  console.log(`Approving Faucet to spend ${USDC_AMOUNT} USDC...`);
   tx = await usdc.approve(FAUCET_ADDRESS, usdcAmount);
   await tx.wait();
   console.log(`Approved USDC. Tx: ${tx.hash}`);

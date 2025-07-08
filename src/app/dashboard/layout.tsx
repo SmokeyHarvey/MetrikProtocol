@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Derive role from pathname
   const role = pathname.includes('/dashboard/supplier') ? 'supplier' 
     : pathname.includes('/dashboard/lp') ? 'lp'
-    : pathname.includes('/dashboard/owner') ? 'owner'
+    : pathname.includes('/dashboard/owner') ? 'verifier'
     : null;
 
   useEffect(() => {

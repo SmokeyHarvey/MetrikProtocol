@@ -103,8 +103,8 @@ function main() {
                 case 2:
                     _a.sent();
                     console.log("Minted METRIK. Tx: ".concat(tx.hash));
-                    // Approve METRIK to Faucet
-                    console.log("Approving Faucet to spend METRIK...");
+                    // Approve METRIK to Faucet (full 1,000,000 METRIK)
+                    console.log("Approving Faucet to spend ".concat(METRIK_AMOUNT, " METRIK..."));
                     return [4 /*yield*/, metrik.approve(FAUCET_ADDRESS, metrikAmount)];
                 case 3:
                     tx = _a.sent();
@@ -123,8 +123,8 @@ function main() {
                 case 6:
                     _a.sent();
                     console.log("Minted USDC. Tx: ".concat(tx.hash));
-                    // Approve USDC to Faucet
-                    console.log("Approving Faucet to spend USDC...");
+                    // Approve USDC to Faucet (full 1,000,000 USDC)
+                    console.log("Approving Faucet to spend ".concat(USDC_AMOUNT, " USDC..."));
                     return [4 /*yield*/, usdc.approve(FAUCET_ADDRESS, usdcAmount)];
                 case 7:
                     tx = _a.sent();

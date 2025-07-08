@@ -13,6 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Clock, CheckCircle, FileText, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { keccak256, toUtf8Bytes } from 'ethers';
+
+const CONTRACT_OWNER = process.env.NEXT_PUBLIC_CONTRACT_OWNER?.toLowerCase();
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -28,6 +31,7 @@ export default function OwnerDashboard() {
 
   const [isVerifier, setIsVerifier] = useState(false);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
+  const [granting, setGranting] = useState(false);
 
   useEffect(() => {
     if (address) {
@@ -35,14 +39,39 @@ export default function OwnerDashboard() {
       hasVerifierRole(address).then((hasRole) => {
         setIsVerifier(hasRole);
         setIsCheckingRole(false);
-        if (!hasRole) {
-          router.push('/');
-        }
       });
     } else {
       setIsCheckingRole(false);
     }
-  }, [address, fetchInvoices, hasVerifierRole, router]);
+  }, [address, fetchInvoices, hasVerifierRole]);
+
+  const handleGrantRole = async () => {
+    setGranting(true);
+    try {
+      const VERIFIER_ROLE = keccak256(toUtf8Bytes("VERIFIER_ROLE"));
+      const res = await fetch('/api/grant-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: VERIFIER_ROLE, address }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Wait for role to propagate
+        let hasRole = false;
+        for (let i = 0; i < 10; i++) {
+          hasRole = await hasVerifierRole(address);
+          if (hasRole) break;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        setIsVerifier(true);
+        toast.success('Verifier role granted!');
+      } else {
+        toast.error('Error: ' + data.error);
+      }
+    } finally {
+      setGranting(false);
+    }
+  };
 
   const handleVerifyInvoice = async (tokenId: string) => {
     try {
@@ -69,12 +98,12 @@ export default function OwnerDashboard() {
   const pendingInvoices = sortedInvoices.filter(invoice => !invoice.isVerified);
   const verifiedInvoices = sortedInvoices.filter(invoice => invoice.isVerified);
 
-  if (isCheckingRole) {
+  if (isCheckingRole || granting) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking permissions...</p>
+          <p className="mt-4 text-gray-600">{granting ? 'Granting Verifier Role...' : 'Checking permissions...'}</p>
         </div>
       </div>
     );
@@ -82,11 +111,17 @@ export default function OwnerDashboard() {
 
   if (!isVerifier) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">You don&apos;t have permission to access this page.</p>
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <div className="text-center w-full max-w-md mx-auto">
+          <div className="mb-8">
+            {address && (
+              <button onClick={handleGrantRole} disabled={granting} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full">
+                {granting ? 'Granting...' : 'Get Verifier Role'}
+              </button>
+            )}
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Required</h2>
+          <p className="text-gray-600 mb-4">You need the Verifier role to access this dashboard.</p>
         </div>
       </div>
     );
@@ -94,6 +129,14 @@ export default function OwnerDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Get Verifier Role button at the top, hidden if already verifier */}
+      {address && !isVerifier && (
+        <div className="mb-4">
+          <button onClick={handleGrantRole} disabled={granting} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full">
+            {granting ? 'Granting...' : 'Get Verifier Role'}
+          </button>
+        </div>
+      )}
       {/* Platform Fee Management */}
       <OwnerPlatformFees />
       
@@ -263,6 +306,13 @@ export default function OwnerDashboard() {
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* Withdraw button example (show only for contract owner) */}
+        {address?.toLowerCase() === CONTRACT_OWNER && (
+          <div className="mb-4">
+            <Button className="bg-green-700 hover:bg-green-800">Withdraw</Button>
+          </div>
+        )}
       </div>
     </div>
   );

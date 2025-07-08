@@ -2,14 +2,43 @@
 
 import { StakingInterface } from '@/components/contracts/StakingInterface';
 import { SupplierStakingHistory } from '@/components/dashboard/SupplierStakingHistory';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { ethers } from 'ethers';
+import { ethers, keccak256, toUtf8Bytes } from 'ethers';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
 import metrikAbi from '@/lib/contracts/abis/MockERC20.json';
 
 const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
 const FAUCET_ADDRESS = "0x047B41c1E11331f7C8BB8Cc2343b34Ec1336772D";
+
+const MINTER_ROLE = keccak256(toUtf8Bytes("MINTER_ROLE"));
+
+function GrantMinterRoleButton({ address }: { address: string }) {
+  const [loading, setLoading] = useState(false);
+  const handleGrantRole = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/grant-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: MINTER_ROLE, address }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Minter role granted! Tx: ' + data.txHash);
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <button onClick={handleGrantRole} disabled={loading} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 mb-4">
+      {loading ? 'Granting...' : 'Get Minter Role'}
+    </button>
+  );
+}
 
 export default function StakingPage() {
   const { address, isConnected } = useAccount();
@@ -45,6 +74,7 @@ export default function StakingPage() {
 
   return (
     <div className="space-y-6">
+      {address && <GrantMinterRoleButton address={address} />}
       <StakingInterface />
       <SupplierStakingHistory />
       <div className="mt-8 border-t pt-6">
