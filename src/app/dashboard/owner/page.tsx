@@ -57,6 +57,7 @@ export default function OwnerDashboard() {
       const data = await res.json();
       if (data.success) {
         // Wait for role to propagate
+        if (!address) throw new Error('No address found');
         let hasRole = false;
         for (let i = 0; i < 10; i++) {
           hasRole = await hasVerifierRole(address);
