@@ -4,7 +4,7 @@ import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useState, useEffect } from 'react';
-import { ethers } from "ethers";
+import { BrowserProvider, Contract, parseUnits } from "ethers";
 import metrikAbi from "@/lib/contracts/abis/MockERC20.json";
 import usdcAbi from "@/lib/contracts/abis/MockERC20.json";
 import faucetAbi from "@/lib/contracts/abis/Faucet.json";
@@ -44,9 +44,9 @@ export default function Home() {
     }
     setFaucetLoading(true);
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      const faucet = new ethers.Contract(FAUCET_ADDRESS, faucetAbi, signer);
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
       const tokenAddress = token === "metrik" ? METRIK_ADDRESS : USDC_ADDRESS;
       const amountStr = token === "metrik" ? metrikAmount : usdcAmount;
       if (!amountStr || isNaN(Number(amountStr)) || Number(amountStr) <= 0) {
@@ -55,7 +55,7 @@ export default function Home() {
         return;
       }
       const decimals = token === "metrik" ? 18 : 6;
-      const amount = ethers.utils.parseUnits(amountStr, decimals);
+      const amount = parseUnits(amountStr, decimals);
       const tx = await faucet.claim(tokenAddress, amount);
       await tx.wait();
       alert(`${token.toUpperCase()} claimed from faucet!`);

@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, keccak256, toUtf8Bytes } from "ethers";
 import * as dotenv from "dotenv";
 // If you haven't already, run: npm install dotenv @types/dotenv --save-dev
 import invoiceNFTArtifact from "../src/lib/contracts/abis/InvoiceNFT.json";
@@ -13,16 +13,16 @@ const SUPPLIER_ADDRESS = process.env.SUPPLIER_ADDRESS!; // Add this to your .env
 const OWNER_ADDRESS = process.env.OWNER_ADDRESS!; // Add this to your .env
 
 // Role hashes (keccak256)
-const MINTER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("MINTER_ROLE"));
-const VERIFIER_ROLE = ethers.utils.keccak256(ethers.utils.toUtf8Bytes("VERIFIER_ROLE"));
+const MINTER_ROLE = keccak256(toUtf8Bytes("MINTER_ROLE"));
+const VERIFIER_ROLE = keccak256(toUtf8Bytes("VERIFIER_ROLE"));
 
 async function main() {
   if (!RPC_URL || !PRIVATE_KEY_ADMIN || !INVOICE_NFT_ADDRESS || !SUPPLIER_ADDRESS || !OWNER_ADDRESS) {
     throw new Error("Missing required environment variables. Check your .env file.");
   }
-  const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(PRIVATE_KEY_ADMIN, provider);
-  const contract = new ethers.Contract(INVOICE_NFT_ADDRESS, invoiceNFTAbi, wallet);
+  const provider = new JsonRpcProvider(RPC_URL);
+  const wallet = new Wallet(PRIVATE_KEY_ADMIN, provider);
+  const contract = new Contract(INVOICE_NFT_ADDRESS, invoiceNFTAbi, wallet);
 
   // Grant MINTER_ROLE to supplier if not already granted
   const hasMinter = await contract.hasRole(MINTER_ROLE, SUPPLIER_ADDRESS);

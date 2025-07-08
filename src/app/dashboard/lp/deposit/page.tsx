@@ -4,7 +4,7 @@ import { LendingInterface } from '@/components/contracts/LendingInterface';
 import { LPDepositHistory } from '@/components/dashboard/LPDepositHistory';
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
-import { ethers } from 'ethers';
+import { BrowserProvider, Contract, parseUnits } from "ethers";
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
 import usdcAbi from '@/lib/contracts/abis/MockERC20.json';
 
@@ -23,16 +23,16 @@ export default function LPDepositPage() {
     }
     setLoading(true);
     try {
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum);
       const signer = provider.getSigner();
-      const faucet = new ethers.Contract(FAUCET_ADDRESS, faucetAbi, signer);
+      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
         alert("Enter a valid amount");
         setLoading(false);
         return;
       }
       const decimals = 6;
-      const amt = ethers.utils.parseUnits(amount, decimals);
+      const amt = parseUnits(amount, decimals);
       const tx = await faucet.claim(USDC_ADDRESS, amt);
       await tx.wait();
       alert(`Minted ${amount} USDC to your wallet!`);

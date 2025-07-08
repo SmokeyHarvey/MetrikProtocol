@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { JsonRpcProvider, Wallet, Contract, parseUnits } from "ethers";
 import * as dotenv from "dotenv";
 import metrikAbi from "../src/lib/contracts/abis/MockERC20.json";
 
@@ -15,13 +15,13 @@ const METRIK_AMOUNT = "1000000";
 const USDC_AMOUNT = "1000000";
 
 async function main() {
-  const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
-  const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+  const provider = new JsonRpcProvider(RPC_URL);
+  const wallet = new Wallet(PRIVATE_KEY, provider);
 
   // Mint METRIK
-  const metrik = new ethers.Contract(METRIK_ADDRESS, metrikAbi.abi, wallet);
+  const metrik = new Contract(METRIK_ADDRESS, metrikAbi.abi, wallet);
   const metrikDecimals = 18;
-  const metrikAmount = ethers.utils.parseUnits(METRIK_AMOUNT, metrikDecimals);
+  const metrikAmount = parseUnits(METRIK_AMOUNT, metrikDecimals);
   console.log(`Minting ${METRIK_AMOUNT} METRIK to ${wallet.address}...`);
   let tx = await metrik.mint(wallet.address, metrikAmount);
   await tx.wait();
@@ -34,9 +34,9 @@ async function main() {
   console.log(`Approved METRIK. Tx: ${tx.hash}`);
 
   // Mint USDC
-  const usdc = new ethers.Contract(USDC_ADDRESS, metrikAbi.abi, wallet);
+  const usdc = new Contract(USDC_ADDRESS, metrikAbi.abi, wallet);
   const usdcDecimals = 6;
-  const usdcAmount = ethers.utils.parseUnits(USDC_AMOUNT, usdcDecimals);
+  const usdcAmount = parseUnits(USDC_AMOUNT, usdcDecimals);
   console.log(`Minting ${USDC_AMOUNT} USDC to ${wallet.address}...`);
   tx = await usdc.mint(wallet.address, usdcAmount);
   await tx.wait();
