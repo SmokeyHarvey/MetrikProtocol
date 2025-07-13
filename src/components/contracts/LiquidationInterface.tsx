@@ -227,7 +227,7 @@ export function LiquidationInterface() {
           <CardContent>
             <p className="text-sm text-red-700">
               Slashing staked tokens is a punitive measure for users who default on their obligations. 
-              This permanently reduces the user's staked amount and affects their tier status.
+              This permanently reduces the user&apos;s staked amount and affects their tier status.
             </p>
           </CardContent>
         </Card>

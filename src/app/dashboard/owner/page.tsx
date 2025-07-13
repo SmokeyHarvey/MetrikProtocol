@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, CheckCircle, FileText, AlertTriangle } from 'lucide-react';
+import { Clock, CheckCircle, FileText } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { keccak256, toUtf8Bytes } from 'ethers';
 
@@ -81,9 +81,9 @@ export default function OwnerDashboard() {
       }
       await verifyInvoice(tokenId);
       // No need to manually refresh, hook will do it
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Show concise error using toast
-      let msg = err?.message || 'Error verifying invoice.';
+      const msg = (err as Error)?.message || 'Error verifying invoice.';
       toast.error(msg);
     }
   };

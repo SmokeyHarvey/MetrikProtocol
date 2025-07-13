@@ -6,7 +6,6 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { BrowserProvider, Contract, parseUnits } from "ethers";
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
-import usdcAbi from '@/lib/contracts/abis/MockERC20.json';
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
 const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
@@ -36,8 +35,8 @@ export default function LPDepositPage() {
       const tx = await faucet.claim(USDC_ADDRESS, amt);
       await tx.wait();
       alert(`Minted ${amount} USDC to your wallet!`);
-    } catch (err: any) {
-      alert(err.message || "Mint failed");
+    } catch (err: unknown) {
+      alert((err as Error).message || "Mint failed");
     } finally {
       setLoading(false);
     }

@@ -5,7 +5,6 @@ import { useStaking } from '@/hooks/useStaking';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
 import { useLendingPool } from '@/hooks/useLendingPool';
 import { useAccount } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
 import { BorrowInterface } from '@/components/borrow/BorrowInterface';
 
 export default function BorrowPage() {
@@ -55,7 +54,7 @@ export default function BorrowPage() {
       setSelectedBorrowInput('');
       setSelectedError(null);
     }
-  }, [selectedInvoice]);
+  }, [selectedInvoice, getInvoiceDetails, getMaxBorrowAmount]);
 
   useEffect(() => {
     if (!selectedLoading && invoices.length > 0) {
@@ -88,8 +87,12 @@ export default function BorrowPage() {
       setSelectedInvoiceDetails(null);
       setSelectedMaxBorrow('0');
       setSelectedBorrowInput('');
-    } catch (err: any) {
-      setSelectedError(err.message || 'Error borrowing');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setSelectedError(err.message || 'Error borrowing');
+      } else {
+        setSelectedError('An unexpected error occurred.');
+      }
     } finally {
       setSelectedLoading(false);
     }

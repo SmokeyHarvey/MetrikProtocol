@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
     await tx.wait();
     console.log('DEBUG: grantRole transaction sent. Tx hash:', tx.hash);
     return new Response(JSON.stringify({ success: true, txHash: tx.hash }), { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('DEBUG: Error in grant-role API:', err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500 });
   }
 } 
