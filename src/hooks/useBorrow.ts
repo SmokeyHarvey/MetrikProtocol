@@ -75,7 +75,10 @@ export function useBorrow() {
       });
       console.log('getBorrowingCapacity raw value:', capacity);
       // If the raw value is 7500, do not divide by 1e6
-      return capacity.toString();
+      if (typeof capacity === 'object' && capacity !== null && 'toString' in capacity && typeof capacity.toString === 'function') {
+        return capacity.toString();
+      }
+      return String(capacity);
     } catch (err) {
       console.error('Error fetching borrowing capacity:', err);
       return '0';
