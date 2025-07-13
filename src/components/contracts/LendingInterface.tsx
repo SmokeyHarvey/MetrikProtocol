@@ -117,7 +117,11 @@ export function LendingInterface() {
   };
 
   const getTrancheName = (tranche: Tranche) => {
-    return tranche === Tranche.JUNIOR ? 'Junior' : 'Senior';
+    return tranche === Tranche.JUNIOR ? 'Flexible Lending' : 'Fixed Lending';
+  };
+
+  const getTrancheAPY = (tranche: Tranche) => {
+    return tranche === Tranche.JUNIOR ? '12% APY' : '7% APY';
   };
 
   const getTrancheDescription = (tranche: Tranche) => {
@@ -128,88 +132,58 @@ export function LendingInterface() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl text-black font-bold mb-4">Lending Pool</h2>
-        
-        {/* User Balance and Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div>
-            <h3 className="text-sm font-medium text-gray-700">Your USDC Balance</h3>
-            <p className="text-2xl text-black font-bold">{getFormattedBalance('usdc')} USDC</p>
+      <div className="bg-white rounded-xl shadow p-8 mb-8">
+        <h2 className="text-2xl font-bold mb-8">Lending Pool</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="bg-gray-50 rounded-lg shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+            <span className="text-gray-500 text-base mb-1">Your USDC Balance</span>
+            <span className="text-xl font-bold">{getFormattedBalance('usdc')} USDC</span>
           </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-700">Total LP Deposits</h3>
-            <p className="text-2xl text-black font-bold">{userTotalDeposits} USDC</p>
+          <div className="bg-gray-50 rounded-lg shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+            <span className="text-gray-500 text-base mb-1">Total LP Deposits</span>
+            <span className="text-xl font-bold">{userTotalDeposits} USDC</span>
           </div>
-        </div>
-
-        {/* Pool Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div>
-            <h3 className="text-sm font-medium text-gray-700">Available Liquidity</h3>
-            <p className="text-2xl text-black font-bold">{availableLiquidity} USDC</p>
+          <div className="bg-gray-50 rounded-lg shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+            <span className="text-gray-500 text-base mb-1">Available Liquidity</span>
+            <span className="text-xl font-bold">{availableLiquidity} USDC</span>
           </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-700">Earned Interest</h3>
-            <p className="text-2xl text-black font-bold">{lpInterest} USDC</p>
-            <div className="flex items-center gap-2 mt-2">
-              <select
-                value={selectedInterestTranche}
-                onChange={e => setSelectedInterestTranche(Number(e.target.value))}
-                className="rounded-md border-gray-300 px-2 py-1 text-sm text-black"
-                disabled={isWithdrawingInterest}
-              >
-                <option value={Tranche.JUNIOR}>Junior Tranche</option>
-                <option value={Tranche.SENIOR}>Senior Tranche</option>
-              </select>
-              <button
-                onClick={handleWithdrawInterest}
-                disabled={isWithdrawingInterest || lpInterest === '0'}
-                className="px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-lg shadow transition focus:outline-none focus:ring-2 focus:ring-violet-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                {isWithdrawingInterest ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                    Withdrawing...
-                  </>
-                ) : (
-                  'Withdraw Interest'
-                )}
-              </button>
-            </div>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-gray-700">Registered LPs</h3>
-            <p className="text-2xl text-black font-bold">{allRegisteredLPs ? allRegisteredLPs.length : 0}</p>
+          <div className="bg-gray-50 rounded-lg shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+            <span className="text-gray-500 text-base mb-1">Registered LPs</span>
+            <span className="text-xl font-bold">{allRegisteredLPs ? allRegisteredLPs.length : 0}</span>
           </div>
         </div>
+      </div>
+      {/* Earned Interest and Controls Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-8">
+        <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+          <span className="text-gray-500 text-base mb-1">Earned Interest</span>
+          <span className="text-xl font-bold">{lpInterest} USDC</span>
+        </div>
+        <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center justify-center min-h-[120px]">
+          <label htmlFor="tranche-select" className="mb-2 text-gray-700 font-medium">Lending Type</label>
+          <select
+            id="tranche-select"
+            value={selectedInterestTranche}
+            onChange={e => setSelectedInterestTranche(Number(e.target.value))}
+            className="rounded-md border-gray-300 px-3 py-2 text-base text-black focus:ring-2 focus:ring-purple-400 mb-4"
+            disabled={isWithdrawingInterest}
+          >
+            <option value={Tranche.JUNIOR}>Flexible Lending (12% APY)</option>
+            <option value={Tranche.SENIOR}>Fixed Lending (7% APY)</option>
+          </select>
+          <button
+            onClick={handleWithdrawInterest}
+            disabled={isWithdrawingInterest || lpInterest === '0'}
+            className="bg-purple-400 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-purple-500 transition disabled:opacity-50 disabled:cursor-not-allowed w-full"
+          >
+            {isWithdrawingInterest ? 'Withdrawing...' : 'Withdraw Interest'}
+          </button>
+        </div>
+      </div>
+      {/* Lending Breakdown */}
+      {/* REMOVE the Lending Breakdown section */}
 
         {/* Tranche Breakdown */}
-        {trancheBreakdown && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Tranche Breakdown</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white p-3 rounded-lg border">
-                <h4 className="text-sm font-medium text-gray-700">Junior Tranche</h4>
-                <p className="text-xl text-black font-bold">
-                  {formatUnits(trancheBreakdown.juniorPrincipal, 6)} USDC
-                </p>
-                <p className="text-xs text-gray-500">Higher risk, higher returns</p>
-              </div>
-              <div className="bg-white p-3 rounded-lg border">
-                <h4 className="text-sm font-medium text-gray-700">Senior Tranche</h4>
-                <p className="text-xl text-black font-bold">
-                  {formatUnits(trancheBreakdown.seniorPrincipal, 6)} USDC
-                </p>
-                <p className="text-xs text-gray-500">Lower risk, stable returns</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Action Tabs */}
         <div className="flex space-x-4 mb-4">
           <button
@@ -239,51 +213,51 @@ export function LendingInterface() {
           <div className="space-y-4">
             {/* Tranche Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Tranche
+              <label className="block text-base font-semibold text-gray-700 mb-2">
+                Select Lending Type
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   onClick={() => setSelectedTranche(Tranche.JUNIOR)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all w-full text-left flex flex-col justify-center min-h-[120px] ${
                     selectedTranche === Tranche.JUNIOR
-                      ? 'border-orange-500 bg-orange-50'
-                      : 'border-gray-200 hover:border-orange-300'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-200 hover:border-green-300'
                   }`}
                 >
-                  <div className="text-left">
-                    <h4 className="font-semibold text-gray-900">Junior Tranche</h4>
+                  <div>
+                    <h4 className="font-bold text-lg text-gray-900 flex items-center gap-2">Flexible Lending <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs">12% APY</span></h4>
                     <p className="text-sm text-gray-600">Higher risk, higher returns</p>
-                    <p className="text-xs text-gray-500 mt-1">First to absorb losses</p>
+                    <p className="text-xs text-gray-500 mt-1">No lockup, first to absorb losses</p>
                   </div>
                 </button>
                 <button
                   onClick={() => setSelectedTranche(Tranche.SENIOR)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
+                  className={`p-6 rounded-xl border-2 transition-all w-full text-left flex flex-col justify-center min-h-[120px] ${
                     selectedTranche === Tranche.SENIOR
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-blue-300'
                   }`}
                 >
-                  <div className="text-left">
-                    <h4 className="font-semibold text-gray-900">Senior Tranche</h4>
+                  <div>
+                    <h4 className="font-bold text-lg text-gray-900 flex items-center gap-2">Fixed Lending <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs">7% APY</span></h4>
                     <p className="text-sm text-gray-600">Lower risk, stable returns</p>
-                    <p className="text-xs text-gray-500 mt-1">Protected by Junior tranche</p>
+                    <p className="text-xs text-gray-500 mt-1">Lockup required, protected by Flexible Lending</p>
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* Lockup Duration for Senior Tranche */}
+            {/* Lockup Duration for Fixed Lending */}
             {selectedTranche === Tranche.SENIOR && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-base font-semibold text-gray-700 mb-2">
                   Lockup Duration (days)
                 </label>
                 <select
                   value={lockupDuration}
                   onChange={(e) => setLockupDuration(Number(e.target.value))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-2 py-3 text-black"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base px-2 py-3 text-black"
                 >
                   <option value={30}>30 days</option>
                   <option value={60}>60 days</option>
@@ -296,15 +270,15 @@ export function LendingInterface() {
 
             {/* Amount Input */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-base font-semibold text-gray-700">
                 Amount (USDC)
               </label>
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-2 py-3 text-black"
-                placeholder={`Enter amount to deposit in ${getTrancheName(selectedTranche)} tranche`}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base px-2 py-3 text-black"
+                placeholder={`Enter amount to deposit in ${getTrancheName(selectedTranche)}`}
               />
             </div>
           </div>
@@ -327,14 +301,14 @@ export function LendingInterface() {
         {/* Action Button */}
         <button
           onClick={handleAction}
-          className="w-full inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 mt-4"
+          className="w-full inline-flex justify-center rounded-xl border border-transparent bg-indigo-600 py-3 px-4 text-base font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 mt-4"
           disabled={isProcessing || !amount}
         >
           {isProcessing
             ? 'Processing...'
             : action === 'deposit'
-              ? `Deposit to ${getTrancheName(selectedTranche)} Tranche`
-              : `Withdraw from ${getTrancheName(selectedTranche)} Tranche`}
+              ? `Deposit to ${getTrancheName(selectedTranche)}`
+              : `Withdraw from ${getTrancheName(selectedTranche)}`}
         </button>
 
         {/* Error Display */}
@@ -350,31 +324,28 @@ export function LendingInterface() {
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Active Deposits</h3>
             <div className="space-y-2">
               {activeDeposits.map((deposit, index) => (
-                <div key={index} className="bg-gray-50 p-3 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {formatUnits(deposit.amount, 6)} USDC
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {getTrancheName(deposit.tranche)} Tranche
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600">
-                        Lockup: {Number(deposit.lockupDuration)} days
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        ID: {deposit.depositId.toString()}
-                      </p>
-                    </div>
+                <div key={index} className="bg-gray-50 p-4 rounded-xl flex flex-col md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-bold text-lg text-gray-900">
+                      {formatUnits(deposit.amount, 6)} USDC
+                    </p>
+                    <p className="text-base text-gray-700">
+                      {getTrancheName(deposit.tranche)}
+                    </p>
+                  </div>
+                  <div className="text-right mt-2 md:mt-0">
+                    <p className="text-base text-gray-600">
+                      Lockup: {Number(deposit.lockupDuration)} days
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      ID: {deposit.depositId.toString()}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 } 
