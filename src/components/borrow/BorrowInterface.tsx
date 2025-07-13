@@ -93,7 +93,7 @@ export function BorrowInterface() {
       try {
         const ids = await getUserLoansRaw(address);
         console.log('DEBUG getUserLoansRaw result:', ids);
-        for (const id of ids) {
+        for (const id of ids as bigint[]) {
           await getLoanByIdRaw(id);
         }
       } catch (err) {
