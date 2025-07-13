@@ -73,7 +73,6 @@ export function useBorrow() {
         functionName: 'getBorrowingCapacity',
         args: [userAddress || address || '0x0'],
       });
-      console.log('getBorrowingCapacity raw value:', capacity);
       // If the raw value is 7500, do not divide by 1e6
       if (typeof capacity === 'object' && capacity !== null && 'toString' in capacity && typeof capacity.toString === 'function') {
         return capacity.toString();
@@ -97,7 +96,6 @@ export function useBorrow() {
         functionName: 'getSystemWideSafeLendingAmount',
         args: [],
       });
-      console.log('getSystemWideSafeLendingAmount raw value:', safeAmount);
       // USDC has 6 decimals
       return (Number(safeAmount) / 1e6).toString();
     } catch (err) {
@@ -126,9 +124,8 @@ export function useBorrow() {
         functionName: 'getUserLoans',
         args: [address],
       }) as bigint[];
-      console.log('DEBUG getAllUserLoans loanIds:', loanIds);
       if (!loanIds || loanIds.length === 0) return [];
-      const loans: Loan[] = await Promise.all(
+      const loans = (await Promise.all(
         loanIds.map(async (id) => {
           try {
             // Use the raw loans(id) function instead of getUserLoanDetails
@@ -138,7 +135,6 @@ export function useBorrow() {
               functionName: 'loans',
               args: [id],
             }) as any;
-            console.log('DEBUG getAllUserLoans details for id', id.toString(), details);
             if (!details || typeof details[0] === 'undefined') return null;
             // details: [invoiceId, amount, dueDate, isRepaid, isLiquidated, interestAccrued, lastInterestUpdate, supplier, borrowAmount, borrowTime]
             const amount = formatAmount(details[1], 6);
@@ -164,8 +160,8 @@ export function useBorrow() {
             return null;
           }
         })
-      );
-      return loans.filter(Boolean) as Loan[];
+      )).filter((loan): loan is Loan => loan !== null);
+      return loans;
     } catch (err) {
       return [];
     }
@@ -238,7 +234,6 @@ export function useBorrow() {
         functionName: 'getUserLoans',
         args: [userAddress || address || '0x0'],
       });
-      console.log('DEBUG getUserLoansRaw result:', ids);
       return ids;
     } catch (err) {
       console.error('DEBUG getUserLoansRaw error:', err);
@@ -258,7 +253,6 @@ export function useBorrow() {
         functionName: 'loans',
         args: [id],
       });
-      console.log('DEBUG getLoanByIdRaw result for', id.toString(), details);
       return details;
     } catch (err) {
       console.error('DEBUG getLoanByIdRaw error for', loanId, err);
