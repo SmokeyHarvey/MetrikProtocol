@@ -125,7 +125,7 @@ export function useBorrow() {
         args: [address],
       }) as bigint[];
       if (!loanIds || loanIds.length === 0) return [];
-      const loans = (await Promise.all(
+      const loanResults = await Promise.all(
         loanIds.map(async (id) => {
           try {
             // Use the raw loans(id) function instead of getUserLoanDetails
@@ -160,7 +160,8 @@ export function useBorrow() {
             return null;
           }
         })
-      )).filter((loan): loan is Loan => loan !== null);
+      );
+      const loans: Loan[] = loanResults.filter((loan): loan is Loan => loan !== null);
       return loans;
     } catch (err) {
       return [];
