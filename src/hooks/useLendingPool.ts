@@ -1161,5 +1161,7 @@ export function useLendingPool() {
     getSafeLendingAmount,
     getAllRegisteredLPs,
     withdrawByTranche,
+    withdrawJuniorInterest,
+    withdrawSeniorInterest,
   };
 } 
