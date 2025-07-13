@@ -91,9 +91,9 @@ export function BorrowInterface() {
         return;
       }
       try {
-        const ids = await getUserLoansRaw(address);
+        const ids = await getUserLoansRaw(address) as bigint[];
         console.log('DEBUG getUserLoansRaw result:', ids);
-        for (const id of ids as bigint[]) {
+        for (const id of ids) {
           await getLoanByIdRaw(id);
         }
       } catch (err) {
@@ -201,6 +201,26 @@ export function BorrowInterface() {
             </div>
             <p className="text-xs text-muted-foreground">
               Maximum borrow capacity
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">System Safe Lending Amount</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <div className="text-2xl font-bold transition-all duration-800 ease-out">
+                ${borrowingCapacity}
+              </div>
+              {isLoading && (
+                <div className="ml-2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This is the system-wide safe lending amount available for all users (USDC).
             </p>
           </CardContent>
         </Card>
