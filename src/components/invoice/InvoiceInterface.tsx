@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Plus, FileText, DollarSign, CheckCircle, XCircle, Upload } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { generateEIP681URI } from '@/utils/eip681';
+import { useAccount } from 'wagmi';
 
 export function InvoiceInterface() {
   const { 
@@ -21,10 +23,31 @@ export function InvoiceInterface() {
     verifyInvoice,
     getInvoiceDetails,
     fetchInvoices,
+    // Add userInvoices from the hook
+    userInvoices
   } = useInvoiceNFT();
   
-  // Get address from the hook or use a default
-  const address = '0x0'; // This should be passed from parent or get from context
+  // Get address from wagmi
+  const { address } = useAccount();
+
+  // Helper to generate a unique invoice ID
+  function generateInvoiceId(addr?: string) {
+    if (!addr) return '';
+    const short = addr.slice(-6);
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `INV-${short}-${rand}`;
+  }
+
+  // Initialize form with automated fields
+  React.useEffect(() => {
+    if (address) {
+      setNewInvoice((prev) => ({
+        ...prev,
+        supplier: address,
+        uniqueId: generateInvoiceId(address),
+      }));
+    }
+  }, [address]);
 
   const [newInvoice, setNewInvoice] = useState({
     supplier: '',
@@ -35,6 +58,8 @@ export function InvoiceInterface() {
   });
   const [isCreating, setIsCreating] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,8 +81,8 @@ export function InvoiceInterface() {
       
       // Reset form
       setNewInvoice({
-        supplier: '',
-        uniqueId: '',
+        supplier: address || '',
+        uniqueId: generateInvoiceId(address),
         amount: '',
         dueDate: '',
         metadata: '',
@@ -209,6 +234,7 @@ export function InvoiceInterface() {
         <TabsList>
           <TabsTrigger value="create">Create Invoice NFT</TabsTrigger>
           <TabsTrigger value="all-invoices">All Invoices</TabsTrigger>
+          <TabsTrigger value="your-invoices">Your Invoices</TabsTrigger>
         </TabsList>
 
         {/* Create Invoice Tab */}
@@ -229,7 +255,7 @@ export function InvoiceInterface() {
                       id="supplier"
                       type="text"
                       value={newInvoice.supplier}
-                      onChange={(e) => setNewInvoice({ ...newInvoice, supplier: e.target.value })}
+                      readOnly
                       placeholder="0x..."
                       required
                     />
@@ -240,8 +266,8 @@ export function InvoiceInterface() {
                       id="uniqueId"
                       type="text"
                       value={newInvoice.uniqueId}
-                      onChange={(e) => setNewInvoice({ ...newInvoice, uniqueId: e.target.value })}
-                      placeholder="INV-001"
+                      readOnly
+                      placeholder="Auto-generated"
                       required
                     />
                   </div>
@@ -272,16 +298,51 @@ export function InvoiceInterface() {
                 </div>
 
                 <div>
+                  <Label htmlFor="invoiceFile">Invoice Document (PDF/JPG/PNG)</Label>
+                  <Input
+                    id="invoiceFile"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploading(true);
+                      setUploadError(null);
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        const response = await fetch('/api/upload-to-ipfs', {
+                          method: 'POST',
+                          body: formData,
+                        });
+                        if (!response.ok) {
+                          const error = await response.json();
+                          throw new Error(error.error || 'Failed to upload to IPFS');
+                        }
+                        const data = await response.json();
+                        setNewInvoice((prev) => ({ ...prev, metadata: data.ipfsHash }));
+                      } catch (err: any) {
+                        setUploadError(err.message || 'Failed to upload');
+                        setNewInvoice((prev) => ({ ...prev, metadata: '' }));
+                      } finally {
+                        setUploading(false);
+                      }
+                    }}
+                  />
+                  {uploading && <div className="text-xs text-blue-600 mt-1">Uploading...</div>}
+                  {uploadError && <div className="text-xs text-red-600 mt-1">{uploadError}</div>}
+                </div>
+                <div>
                   <Label htmlFor="metadata">Metadata (IPFS Hash)</Label>
                   <Textarea
                     id="metadata"
                     value={newInvoice.metadata}
-                    onChange={(e) => setNewInvoice({ ...newInvoice, metadata: e.target.value })}
-                    placeholder="ipfs://QmYourMetadataHash or JSON metadata"
+                    readOnly
+                    placeholder="Auto-filled after upload"
                     rows={3}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Optional: IPFS hash or JSON metadata for the invoice
+                    This will be auto-filled after uploading your invoice document.
                   </p>
                 </div>
 
@@ -317,64 +378,116 @@ export function InvoiceInterface() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              ) : invoices && invoices.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No invoices found
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice ID</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Pay</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoices && invoices.length > 0 ? (
+                    invoices.map((invoice) => {
+                      // Constants for EIP-681
+                      const USDC_ADDRESS = '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // Mainnet USDC, replace as needed
+                      const CHAIN_ID = 1; // Mainnet, replace as needed
+                      const eip681 = generateEIP681URI({
+                        tokenAddress: USDC_ADDRESS,
+                        recipient: invoice.supplier,
+                        amount: invoice.creditAmount,
+                        decimals: 6,
+                        chainId: CHAIN_ID,
+                      });
+                      return (
+                        <TableRow key={invoice.id}>
+                          <TableCell>{invoice.invoiceId}</TableCell>
+                          <TableCell>{invoice.supplier}</TableCell>
+                          <TableCell>{invoice.creditAmount} USDC</TableCell>
+                          <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                          <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-center gap-2">
+                              <a href={eip681} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">Pay with Wallet</a>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Invoice ID</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>Buyer</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableCell colSpan={6} className="text-center text-gray-500">
+                        No invoices found.
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-mono text-sm">
-                          {invoice.id}
-                        </TableCell>
-                        <TableCell>{invoice.invoiceId}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {invoice.buyer.slice(0, 6)}...{invoice.buyer.slice(-4)}
-                        </TableCell>
-                        <TableCell>${invoice.creditAmount}</TableCell>
-                        <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                        <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
-                        <TableCell>
-                          {!invoice.isVerified && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleVerifyInvoice(invoice.id)}
-                              disabled={isVerifying}
-                            >
-                              {isVerifying ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                'Verify'
-                              )}
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Your Invoices Tab */}
+        <TabsContent value="your-invoices" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Invoices</CardTitle>
+              <CardDescription>
+                View and manage invoices you have created
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice ID</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Pay</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userInvoices && userInvoices.length > 0 ? (
+                    userInvoices.map((invoice) => {
+                      // Constants for EIP-681
+                      const USDC_ADDRESS = '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // Mainnet USDC, replace as needed
+                      const CHAIN_ID = 1; // Mainnet, replace as needed
+                      const eip681 = generateEIP681URI({
+                        tokenAddress: USDC_ADDRESS,
+                        recipient: invoice.supplier,
+                        amount: invoice.creditAmount,
+                        decimals: 6,
+                        chainId: CHAIN_ID,
+                      });
+                      return (
+                        <TableRow key={invoice.id}>
+                          <TableCell>{invoice.invoiceId}</TableCell>
+                          <TableCell>{invoice.supplier}</TableCell>
+                          <TableCell>{invoice.creditAmount} USDC</TableCell>
+                          <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                          <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col items-center gap-2">
+                              <a href={eip681} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">Pay with Wallet</a>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-gray-500">
+                        No invoices found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </TabsContent>
