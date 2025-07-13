@@ -508,6 +508,8 @@ export function useLendingPool() {
   }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi]);
 
   const repay = useCallback(async (tokenId: string) => {
+    let loanDetails: any = null;
+    let totalAmountDue: bigint | undefined = undefined;
     try {
       setIsLoading(true);
       setError(null);
@@ -529,7 +531,7 @@ export function useLendingPool() {
         throw new Error('Invalid invoice ID. Please select a valid invoice to repay.');
       }
 
-      const loanDetails = await getUserLoanDetails(address, tokenId);
+      loanDetails = await getUserLoanDetails(address, tokenId);
       if (!loanDetails) {
         throw new Error('Loan details not found for this invoice. Please ensure you have an active loan for this invoice.');
       }
@@ -554,7 +556,7 @@ export function useLendingPool() {
       // Note: Early repayment should be allowed, so we don't block non-overdue loans
 
       const buffer = parseUnits('1', 6); // 1 USDC
-      const totalAmountDue = parseUnits((parseFloat(loanDetails.amount) + parseFloat(loanDetails.interestAccrued)).toFixed(6), 6) + buffer; // Convert to BigInt with 6 decimals
+      totalAmountDue = parseUnits((parseFloat(loanDetails.amount) + parseFloat(loanDetails.interestAccrued)).toFixed(6), 6) + buffer; // Convert to BigInt with 6 decimals
 
       // First approve the lending pool to spend USDC for repayment
       const { request: approveRequest } = await publicClient.simulateContract({
@@ -591,21 +593,33 @@ export function useLendingPool() {
       if (err.message?.includes('0xe450d38c')) {
         // This error signature could mean several things, let's check common causes
         console.log('Repay error 0xe450d38c detected. Checking possible causes...');
-        
         // Check USDC balance
         try {
-          const usdcBalance = await publicClient.readContract({
-            address: usdcContract.address,
-            abi: usdcContract.abi,
-            functionName: 'balanceOf',
-            args: [address],
-          }) as bigint;
-          console.log('Current USDC balance:', usdcBalance.toString());
-          
-          if (usdcBalance < totalAmountDue) {
-            errorMessage = `Insufficient USDC balance. You need ${formatAmount(totalAmountDue, 6)} but have ${formatAmount(usdcBalance, 6)}.`;
+          if (!publicClient) {
+            errorMessage = 'Loan repayment failed. Could not check USDC balance because publicClient is unavailable.';
           } else {
-            errorMessage = 'Loan repayment failed. This could be due to: 1) Loan already repaid, 2) You are not the loan owner, 3) Insufficient USDC approval, or 4) Contract conditions not met.';
+            // Ensure totalAmountDue is defined
+            let amountDue = totalAmountDue;
+            if (typeof amountDue === 'undefined' && loanDetails) {
+              const buffer = parseUnits('1', 6); // 1 USDC
+              amountDue = parseUnits((parseFloat(loanDetails.amount) + parseFloat(loanDetails.interestAccrued)).toFixed(6), 6) + buffer;
+            }
+            if (typeof amountDue === 'undefined') {
+              errorMessage = 'Loan repayment failed. Could not determine total amount due.';
+            } else {
+              const usdcBalance = await publicClient.readContract({
+                address: usdcContract.address,
+                abi: usdcContract.abi,
+                functionName: 'balanceOf',
+                args: [address],
+              }) as bigint;
+              console.log('Current USDC balance:', usdcBalance.toString());
+              if (usdcBalance < amountDue) {
+                errorMessage = `Insufficient USDC balance. You need ${formatAmount(amountDue, 6)} but have ${formatAmount(usdcBalance, 6)}.`;
+              } else {
+                errorMessage = 'Loan repayment failed. This could be due to: 1) Loan already repaid, 2) You are not the loan owner, 3) Insufficient USDC approval, or 4) Contract conditions not met.';
+              }
+            }
           }
         } catch (balanceErr) {
           errorMessage = 'Loan repayment failed. Please check your USDC balance and ensure the loan is overdue.';
