@@ -23,9 +23,7 @@ export function BorrowInterface() {
     animatedStats,
     // New functions and state from updated hook
     getBorrowingCapacity,
-    getSafeLendingAmount,
     borrowingCapacity,
-    safeLendingAmount,
     refetch,
     getUserLoansRaw,
     getLoanByIdRaw,
