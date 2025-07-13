@@ -305,7 +305,7 @@ export function RepayInterface() {
             <CardContent>
               {outstandingLoans.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  {isLoading ? 'Loading outstanding loans...' : 'No outstanding loans found. You\'re all caught up!'}
+                  {isLoading ? 'Loading outstanding loans...' : 'No outstanding loans found. You&apos;re all caught up!'}
                 </div>
               ) : (
                 <Table>
