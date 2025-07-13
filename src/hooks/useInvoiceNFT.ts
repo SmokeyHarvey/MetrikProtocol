@@ -99,7 +99,8 @@ export function useInvoiceNFT() {
         }
       }
 
-      const formattedInvoices = await Promise.all(invoicePromises);
+      // Remove unnecessary Promise.all, use array directly
+      const formattedInvoices = invoicePromises;
       setInvoices(formattedInvoices);
       return formattedInvoices;
     } catch (err) {

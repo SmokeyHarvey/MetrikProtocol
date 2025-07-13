@@ -221,7 +221,8 @@ export function useStaking() {
         } catch {}
         return { ...stake, pendingReward, rewardDebt };
       }));
-      setActiveStakes(stakes);
+      // Filter out any null or undefined stakes before setting state
+      setActiveStakes(stakes.filter(Boolean));
       
       // Get stake usage
       const usage = await getStakeUsage();

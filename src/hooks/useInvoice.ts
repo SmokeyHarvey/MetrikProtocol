@@ -119,7 +119,8 @@ export function useInvoice() {
         }
       }
 
-      const formattedInvoices = await Promise.all(invoicePromises);
+      // Remove unnecessary Promise.all, use array directly
+      const formattedInvoices = invoicePromises;
       setInvoices(formattedInvoices);
 
       // Update stats
@@ -190,7 +191,8 @@ export function useInvoice() {
         }
       }
 
-      const formattedUserInvoices = await Promise.all(userInvoicePromises);
+      // Remove unnecessary Promise.all, use array directly
+      const formattedUserInvoices = userInvoicePromises;
       setUserInvoices(formattedUserInvoices);
       return formattedUserInvoices;
     } catch (err) {
