@@ -6,6 +6,7 @@ import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
 import { useLendingPool } from '@/hooks/useLendingPool';
 import { useAccount } from 'wagmi';
 import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
+import { BorrowInterface } from '@/components/borrow/BorrowInterface';
 
 export default function BorrowPage() {
   const { address } = useAccount();
@@ -72,7 +73,7 @@ export default function BorrowPage() {
       if (!invoiceDetails) throw new Error('Invoice not found');
       if (!invoiceDetails.isVerified) throw new Error('Invoice is not verified');
       if (invoiceDetails.supplier.toLowerCase() !== address?.toLowerCase()) throw new Error('You are not the supplier of this invoice');
-      if (new Date(invoiceDetails.dueDate) <= new Date()) throw new Error('Invoice has expired');
+      if (new Date(typeof invoiceDetails.dueDate === 'bigint' ? Number(invoiceDetails.dueDate) * 1000 : invoiceDetails.dueDate) <= new Date()) throw new Error('Invoice has expired');
       const borrowAmountWei = BigInt(selectedBorrowInput) * BigInt(1e6);
       const maxBorrowAmountWei = BigInt(selectedMaxBorrow || '0');
       if (borrowAmountWei > maxBorrowAmountWei) throw new Error(`Borrow amount exceeds maximum allowed (${(maxBorrowAmountWei / BigInt(1e6)).toString()} USDC)`);
@@ -128,6 +129,9 @@ const isInputValid = !isNaN(inputAmount) && inputAmount > 0 && inputAmountInUSDC
   return (
     <div className="flex flex-col items-center justify-center">
       <div className="w-full max-w-full">
+        {/* Borrow stats and history UI */}
+        <BorrowInterface />
+        {/* Existing custom invoice borrow UI */}
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-2xl font-bold mb-2 text-gray-900">Borrow Against Invoice</h2>
           <p className="text-gray-500 mb-6">Select a verified invoice and borrow USDC against it. The platform will automatically handle NFT approval if needed.</p>

@@ -51,11 +51,19 @@ export function useLPDepositHistory() {
       setIsLoading(true);
       setError(null);
 
-      // Get LP info
-      const lpInfo = await publicClient.readContract({
+      // Get user's total LP deposits
+      const totalLPDeposits = await publicClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
-        functionName: 'lpInfo',
+        functionName: 'getUserTotalLPDeposits',
+        args: [address],
+      });
+
+      // Get user's LP deposits
+      const userLPDeposits = await publicClient.readContract({
+        address: lendingPoolContract.address,
+        abi: lendingPoolContract.abi,
+        functionName: 'getUserLPDeposits',
         args: [address],
       });
 
@@ -67,23 +75,27 @@ export function useLPDepositHistory() {
         args: [address],
       });
 
-      // For now, we'll create a simplified deposit history
-      // In the actual contract, you might need to loop through lpDeposits mapping
+      // Create deposit history from the actual deposits
       const depositHistory: LPDeposit[] = [];
       
-      if (Array.isArray(lpInfo) && lpInfo.length >= 3) {
-        const depositAmount = formatAmount(lpInfo[0], 6); // USDC has 6 decimals
-        const interestAccrued = formatAmount(lpInfo[1], 6);
-        const lastUpdateTime = new Date(Number(lpInfo[2]) * 1000);
-        
-        if (Number(depositAmount) > 0) {
-          depositHistory.push({
-            amount: depositAmount,
-            depositTime: lastUpdateTime,
-            withdrawnAmount: '0', // This would need to be tracked separately
-            interestAccrued: formatAmount(totalInterest as bigint, 6),
-            isActive: true,
-          });
+      if (Array.isArray(userLPDeposits)) {
+        for (const deposit of userLPDeposits) {
+          if (deposit && typeof deposit === 'object' && 'amount' in deposit) {
+            const depositAmount = formatAmount(deposit.amount as bigint, 6); // USDC has 6 decimals
+            const depositTime = new Date(Number(deposit.depositTime || 0) * 1000);
+            const withdrawnAmount = formatAmount(deposit.withdrawnAmount || BigInt(0), 6);
+            const interestAccrued = formatAmount(totalInterest as bigint, 6);
+            
+            if (Number(depositAmount) > 0) {
+              depositHistory.push({
+                amount: depositAmount,
+                depositTime: depositTime,
+                withdrawnAmount: withdrawnAmount,
+                interestAccrued: interestAccrued,
+                isActive: Number(depositAmount) > Number(withdrawnAmount),
+              });
+            }
+          }
         }
       }
 

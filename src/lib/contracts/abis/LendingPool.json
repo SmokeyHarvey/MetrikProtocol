@@ -204,6 +204,12 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "depositId",
+          "type": "uint256"
         }
       ],
       "name": "Deposit",
@@ -239,6 +245,32 @@
         }
       ],
       "name": "InvoiceBurned",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "lp",
+          "type": "address"
+        }
+      ],
+      "name": "LPRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "lp",
+          "type": "address"
+        }
+      ],
+      "name": "LPUnregistered",
       "type": "event"
     },
     {
@@ -345,6 +377,19 @@
       "anonymous": false,
       "inputs": [
         {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newPercent",
+          "type": "uint256"
+        }
+      ],
+      "name": "MaxLoanPercentUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
           "indexed": true,
           "internalType": "address",
           "name": "previousOwner",
@@ -383,6 +428,19 @@
         }
       ],
       "name": "Repay",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "newRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReserveRatioUpdated",
       "type": "event"
     },
     {
@@ -458,6 +516,19 @@
     },
     {
       "inputs": [],
+      "name": "JUNIOR_LP_INTEREST_RATE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "LP_INTEREST_RATE",
       "outputs": [
         {
@@ -472,6 +543,19 @@
     {
       "inputs": [],
       "name": "PLATFORM_FEE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SENIOR_LP_INTEREST_RATE",
       "outputs": [
         {
           "internalType": "uint256",
@@ -577,6 +661,42 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lockupDuration",
+          "type": "uint256"
+        }
+      ],
+      "name": "depositWithTranche",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllRegisteredLPs",
+      "outputs": [
+        {
+          "internalType": "address[]",
+          "name": "",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "user",
           "type": "address"
@@ -597,6 +717,121 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "depositIndex",
+          "type": "uint256"
+        }
+      ],
+      "name": "getDepositDetails",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "depositTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lastInterestClaimed",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "withdrawnAmount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "depositId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lockupDuration",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isLocked",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lp",
+          "type": "address"
+        }
+      ],
+      "name": "getLPActiveDeposits",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "depositTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lastInterestClaimed",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "withdrawnAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "depositId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum LendingPool.Tranche",
+              "name": "tranche",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lockupDuration",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct LendingPool.LPDeposit[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "lp",
           "type": "address"
         }
@@ -606,6 +841,30 @@
         {
           "internalType": "uint256",
           "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "lp",
+          "type": "address"
+        }
+      ],
+      "name": "getLPTrancheBreakdown",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "juniorPrincipal",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "seniorPrincipal",
           "type": "uint256"
         }
       ],
@@ -637,6 +896,134 @@
           "internalType": "address",
           "name": "user",
           "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "invoiceAmount",
+          "type": "uint256"
+        }
+      ],
+      "name": "getSafeLendingAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getSeniorLockedBalance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getSystemWideSafeLendingAmount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        }
+      ],
+      "name": "getTrancheAvailableBalance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        }
+      ],
+      "name": "getTrancheDeposits",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        }
+      ],
+      "name": "getTranchePendingInterest",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
         }
       ],
       "name": "getUserActiveLoans",
@@ -645,6 +1032,81 @@
           "internalType": "uint256[]",
           "name": "",
           "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserDepositCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserLPDeposits",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "depositTime",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lastInterestClaimed",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "withdrawnAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "depositId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "enum LendingPool.Tranche",
+              "name": "tranche",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint256",
+              "name": "lockupDuration",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct LendingPool.LPDeposit[]",
+          "name": "",
+          "type": "tuple[]"
         }
       ],
       "stateMutability": "view",
@@ -733,6 +1195,38 @@
       "type": "function"
     },
     {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        }
+      ],
+      "name": "getUserTotalLPDeposits",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getUtilization",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [],
       "name": "iStaking",
       "outputs": [
@@ -753,6 +1247,25 @@
           "internalType": "contract InvoiceNFT",
           "name": "",
           "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "isRegisteredLP",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -856,6 +1369,25 @@
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "lpAddresses",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "address",
           "name": "",
           "type": "address"
@@ -887,6 +1419,21 @@
           "internalType": "uint256",
           "name": "withdrawnAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "depositId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
+        },
+        {
+          "internalType": "uint256",
+          "name": "lockupDuration",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -900,21 +1447,62 @@
           "type": "address"
         }
       ],
-      "name": "lpInfo",
+      "name": "lpIndex",
       "outputs": [
         {
           "internalType": "uint256",
-          "name": "depositAmount",
+          "name": "",
           "type": "uint256"
-        },
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "lpTotalDeposits",
+      "outputs": [
         {
           "internalType": "uint256",
-          "name": "interestAccrued",
+          "name": "",
           "type": "uint256"
-        },
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "lpTotalInterest",
+      "outputs": [
         {
           "internalType": "uint256",
-          "name": "lastInterestUpdate",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxLoanPercent",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
           "type": "uint256"
         }
       ],
@@ -981,6 +1569,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "reserveRatio",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -989,6 +1590,32 @@
         }
       ],
       "name": "setBorrowRegistry",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "newPercent",
+          "type": "uint256"
+        }
+      ],
+      "name": "setMaxLoanPercent",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "newRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "setReserveRatio",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1035,6 +1662,32 @@
     {
       "inputs": [],
       "name": "totalDeposits",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalJuniorLiquidity",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalSeniorLiquidity",
       "outputs": [
         {
           "internalType": "uint256",
@@ -1131,16 +1784,34 @@
           "internalType": "uint256",
           "name": "amount",
           "type": "uint256"
+        },
+        {
+          "internalType": "enum LendingPool.Tranche",
+          "name": "tranche",
+          "type": "uint8"
         }
       ],
-      "name": "withdraw",
+      "name": "withdrawByTranche",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawJunior",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
     },
     {
       "inputs": [],
-      "name": "withdrawInterest",
+      "name": "withdrawJuniorInterest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -1148,6 +1819,26 @@
     {
       "inputs": [],
       "name": "withdrawPlatformFees",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawSenior",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawSeniorInterest",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

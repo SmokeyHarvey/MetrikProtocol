@@ -6,6 +6,27 @@ import { type Hash } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
 
+// Types for the new staking functions
+export interface StakeInfo {
+  amount: bigint;
+  points: bigint;
+  startTime: bigint;
+  lastUpdateTime: bigint;
+  duration: bigint;
+  stakeId: bigint;
+  isActive: boolean;
+  apy: bigint;
+  multiplier: bigint;
+  rewardDebt?: bigint; // claimed
+  pendingReward?: bigint; // pending
+}
+
+export interface StakeUsage {
+  total: bigint;
+  used: bigint;
+  free: bigint;
+}
+
 export function useStaking() {
   const { contract: stakingContract } = useContract('staking');
   const { contract: metrikContract } = useContract('metrikToken');
@@ -23,6 +44,11 @@ export function useStaking() {
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
   const [isBalanceError, setIsBalanceError] = useState(false);
   const [balanceError, setBalanceError] = useState<Error | null>(null);
+  
+  // New state for additional staking data
+  const [activeStakes, setActiveStakes] = useState<StakeInfo[]>([]);
+  const [stakeUsage, setStakeUsage] = useState<StakeUsage | null>(null);
+  const [totalStakedAmount, setTotalStakedAmount] = useState<string>('0');
 
   // Animated values for smooth UI updates
   const animatedStakedAmount = useAnimatedValue(stakedAmount, 800, 'ease-out');
@@ -33,6 +59,130 @@ export function useStaking() {
     'ease-out'
   );
 
+  // New function to get user's tier (0-4)
+  const getTier = useCallback(async (userAddress?: string): Promise<number> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi) {
+      return 0;
+    }
+
+    try {
+      const tier = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'getTier',
+        args: [userAddress || address || '0x0'],
+      });
+      return Number(tier);
+    } catch (err) {
+      console.error('Error fetching tier:', err);
+      return 0;
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+
+  // New function to get total staked amount
+  const getStakedAmount = useCallback(async (userAddress?: string): Promise<string> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi) {
+      return '0';
+    }
+
+    try {
+      const amount = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'getStakedAmount',
+        args: [userAddress || address || '0x0'],
+      });
+      return formatAmount(amount as bigint);
+    } catch (err) {
+      console.error('Error fetching staked amount:', err);
+      return '0';
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+
+  // New function to get all active stakes
+  const getActiveStakes = useCallback(async (userAddress?: string): Promise<StakeInfo[]> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi) {
+      return [];
+    }
+
+    try {
+      const stakes = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'getActiveStakes',
+        args: [userAddress || address || '0x0'],
+      });
+      return stakes as StakeInfo[];
+    } catch (err) {
+      console.error('Error fetching active stakes:', err);
+      return [];
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+
+  // New function to get stake usage (total, used, free)
+  const getStakeUsage = useCallback(async (userAddress?: string): Promise<StakeUsage | null> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi) {
+      return null;
+    }
+
+    try {
+      const usage = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'getStakeUsage',
+        args: [userAddress || address || '0x0'],
+      });
+      
+      if (Array.isArray(usage) && usage.length === 3) {
+        return {
+          total: usage[0] as bigint,
+          used: usage[1] as bigint,
+          free: usage[2] as bigint,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error('Error fetching stake usage:', err);
+      return null;
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+
+  // New function to get APY for a given duration
+  const getAPYForDuration = useCallback(async (duration: number): Promise<number> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi) {
+      return 0;
+    }
+    try {
+      const apy = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'getAPYForDuration',
+        args: [duration],
+      });
+      return Number(apy) / 100; // APY is likely in basis points
+    } catch (err) {
+      console.error('Error fetching APY for duration:', err);
+      return 0;
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi]);
+
+  // New function to get pending rewards for a stake
+  const getPendingReward = useCallback(async (stakeIndex: bigint): Promise<bigint> => {
+    if (!publicClient || !stakingContract.address || !stakingContract.abi || !address) return 0n;
+    try {
+      const pending = await publicClient.readContract({
+        address: stakingContract.address,
+        abi: stakingContract.abi,
+        functionName: 'pendingRewards',
+        args: [address, stakeIndex],
+      });
+      return BigInt(pending as bigint);
+    } catch (err) {
+      console.error('Error fetching pending rewards:', err);
+      return 0n;
+    }
+  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+
   // Fetch staked balance and info
   const fetchStakedInfo = useCallback(async () => {
     if (!publicClient || !stakingContract.address || !stakingContract.abi || !address) {
@@ -40,75 +190,53 @@ export function useStaking() {
       setStakeDuration(0);
       setRewards('0');
       setCurrentTier(0);
+      setActiveStakes([]);
+      setStakeUsage(null);
+      setTotalStakedAmount('0');
       return;
     }
     
     try {
-      // Use getStakeUsage instead of getStakeInfo to avoid array bounds error
-      const usageData = await publicClient.readContract({
-        address: stakingContract.address,
-        abi: stakingContract.abi,
-        functionName: 'getStakeUsage',
-        args: [address],
-      });
+      // Get tier
+      const tier = await getTier();
+      setCurrentTier(tier);
       
-      if (Array.isArray(usageData) && usageData.length === 3) {
-        const totalStaked = usageData[0] as bigint;
-        const usedStaked = usageData[1] as bigint;
-        const freeStaked = usageData[2] as bigint;
-        
-        // Set the total staked amount
-        setStakedAmount(formatAmount(totalStaked));
-        
-        // Get tier based on total staked amount
+      // Get total staked amount
+      const totalStaked = await getStakedAmount();
+      setTotalStakedAmount(totalStaked);
+      setStakedAmount(totalStaked);
+      
+      // Get active stakes
+      let stakes = await getActiveStakes();
+      // For each stake, fetch pending and claimed rewards
+      stakes = await Promise.all(stakes.map(async (stake, idx) => {
+        let pendingReward = 0n;
+        let rewardDebt = 0n;
         try {
-          const tier = await publicClient.readContract({
-            address: stakingContract.address,
-            abi: stakingContract.abi,
-            functionName: 'getTier',
-            args: [address],
-          });
-          setCurrentTier(Number(tier));
-        } catch (tierError) {
-          console.error('Error fetching tier:', tierError);
-          setCurrentTier(0);
-        }
-        
-        // For now, we'll set rewards to 0 as there's no direct rewards function
-        setRewards('0');
-        
-        // Try to get duration from active stakes if any exist
+          pendingReward = await getPendingReward(stake.stakeId);
+        } catch {}
         try {
-          const activeStakes = await publicClient.readContract({
-            address: stakingContract.address,
-            abi: stakingContract.abi,
-            functionName: 'getActiveStakes',
-            args: [address],
-          });
-          
-          if (Array.isArray(activeStakes) && activeStakes.length > 0) {
-            // Use the duration from the first active stake
-            const firstStake = activeStakes[0];
-            if (Array.isArray(firstStake) && firstStake.length >= 5) {
-              const duration = Number(firstStake[4]); // duration is at index 4
-              setStakeDuration(duration);
-            } else {
-              setStakeDuration(0);
-            }
-          } else {
-            setStakeDuration(0);
-          }
-        } catch (stakesError) {
-          console.error('Error fetching active stakes:', stakesError);
-          setStakeDuration(0);
-        }
+          // rewardDebt is part of the struct if returned by getActiveStakes, else fallback to 0
+          rewardDebt = (stake as any).rewardDebt ? BigInt((stake as any).rewardDebt) : 0n;
+        } catch {}
+        return { ...stake, pendingReward, rewardDebt };
+      }));
+      setActiveStakes(stakes);
+      
+      // Get stake usage
+      const usage = await getStakeUsage();
+      setStakeUsage(usage);
+      
+      // Calculate duration from active stakes
+      if (stakes.length > 0) {
+        const firstStake = stakes[0];
+        setStakeDuration(Number(firstStake.duration));
       } else {
-        // No stakes found
-        setStakedAmount('0');
         setStakeDuration(0);
-        setRewards('0');
-        setCurrentTier(0);
       }
+      
+      // For now, we'll set rewards to 0 as there's no direct rewards function
+      setRewards('0');
     } catch (err) {
       console.error('Error fetching stake info:', err);
       // Don't throw error, just set default values
@@ -116,8 +244,11 @@ export function useStaking() {
       setStakeDuration(0);
       setRewards('0');
       setCurrentTier(0);
+      setActiveStakes([]);
+      setStakeUsage(null);
+      setTotalStakedAmount('0');
     }
-  }, [publicClient, stakingContract.address, stakingContract.abi, address]);
+  }, [publicClient, stakingContract.address, stakingContract.abi, address, getTier, getStakedAmount, getActiveStakes, getStakeUsage, getPendingReward]);
 
   // Fetch METRIK balance
   const fetchMetrikBalance = useCallback(async () => {
@@ -377,9 +508,20 @@ export function useStaking() {
     unstake,
     claimRewards,
     metrikBalance: metrikBalance && typeof metrikBalance === 'bigint' ? formatAmount(metrikBalance) : '0',
+    // New state for additional staking data
+    activeStakes,
+    stakeUsage,
+    totalStakedAmount,
+    // Functions for additional data
+    getTier,
+    getStakedAmount,
+    getActiveStakes,
+    getStakeUsage,
+    getAPYForDuration,
     // Animated values for smooth UI updates
     animatedStakedAmount,
     animatedRewards,
     animatedMetrikBalance,
+    fetchStakedInfo,
   };
 } 

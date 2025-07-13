@@ -139,10 +139,10 @@ export default function InvoicePage() {
       if (!address) throw new Error('No wallet address found');
       const { ipfsHash } = await uploadToIPFS(invoiceFile);
       await createInvoice(
+        address as `0x${string}`,
+        invoiceId,
         creditAmount,
         new Date(dueDate),
-        address,
-        invoiceId,
         ipfsHash
       );
       await fetchInvoices(address);

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBorrow } from '@/hooks/useBorrow';
+import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle, Shield, Target } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 export function BorrowInterface() {
@@ -20,7 +21,18 @@ export function BorrowInterface() {
     error,
     borrow,
     animatedStats,
+    // New functions and state from updated hook
+    getBorrowingCapacity,
+    getSafeLendingAmount,
+    borrowingCapacity,
+    safeLendingAmount,
+    refetch,
+    getUserLoansRaw,
+    getLoanByIdRaw,
   } = useBorrow();
+
+  // Get invoices from useInvoiceNFT
+  const { invoices } = useInvoiceNFT();
 
   const [borrowForm, setBorrowForm] = useState({
     invoiceId: '',
@@ -52,6 +64,43 @@ export function BorrowInterface() {
       toast.error('Failed to borrow');
     } finally {
       setIsBorrowing(false);
+    }
+  };
+
+  // Debug: Call getUserLoansRaw directly
+  const handleDebugGetUserLoans = async () => {
+    if (typeof window !== 'undefined' && getUserLoansRaw) {
+      const address = (window as any).ethereum?.selectedAddress;
+      if (!address) {
+        console.log('No address found in window.ethereum.selectedAddress');
+        return;
+      }
+      try {
+        const result = await getUserLoansRaw(address);
+        console.log('DEBUG getUserLoansRaw result:', result);
+      } catch (err) {
+        console.error('DEBUG getUserLoansRaw error:', err);
+      }
+    }
+  };
+
+  // Debug: Call getLoanByIdRaw for each loan ID from getUserLoansRaw
+  const handleDebugGetLoanByIdRaw = async () => {
+    if (typeof window !== 'undefined' && getUserLoansRaw && getLoanByIdRaw) {
+      const address = (window as any).ethereum?.selectedAddress;
+      if (!address) {
+        console.log('No address found in window.ethereum.selectedAddress');
+        return;
+      }
+      try {
+        const ids = await getUserLoansRaw(address);
+        console.log('DEBUG getUserLoansRaw result:', ids);
+        for (const id of ids) {
+          await getLoanByIdRaw(id);
+        }
+      } catch (err) {
+        console.error('DEBUG getLoanByIdRaw error:', err);
+      }
     }
   };
 
@@ -97,9 +146,12 @@ export function BorrowInterface() {
   };
 
   const calculateBorrowUtilization = () => {
-    const totalBorrowed = borrowStats.totalBorrowed;
-    const maxBorrow = 1000; // Placeholder max borrow amount
-    return maxBorrow > 0 ? (totalBorrowed / maxBorrow) * 100 : 0;
+    // Use only active loans for utilization
+    const activeBorrowed = userLoans
+      .filter(loan => loan.status === 'active')
+      .reduce((sum, loan) => sum + Number(loan.amount), 0);
+    const maxBorrow = parseFloat(borrowingCapacity) || 1000;
+    return maxBorrow > 0 ? (activeBorrowed / maxBorrow) * 100 : 0;
   };
 
   return (
@@ -137,13 +189,13 @@ export function BorrowInterface() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Max Borrow</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Borrowing Capacity</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold transition-all duration-800 ease-out">
-                $1000
+                ${borrowingCapacity}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
@@ -151,6 +203,26 @@ export function BorrowInterface() {
             </div>
             <p className="text-xs text-muted-foreground">
               Maximum borrow capacity
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">System Safe Lending Amount</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <div className="text-2xl font-bold transition-all duration-800 ease-out">
+                ${safeLendingAmount}
+              </div>
+              {isLoading && (
+                <div className="ml-2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This is the system-wide safe lending amount available for all users (USDC).
             </p>
           </CardContent>
         </Card>
@@ -174,26 +246,6 @@ export function BorrowInterface() {
             </p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Interest</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <div className="text-2xl font-bold transition-all duration-800 ease-out">
-                ${animatedStats.totalInterest}
-              </div>
-              {isLoading && (
-                <div className="ml-2 w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Accrued interest
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Borrow Utilization */}
@@ -201,25 +253,92 @@ export function BorrowInterface() {
         <CardHeader>
           <CardTitle>Borrow Utilization</CardTitle>
           <CardDescription>
-            Your current borrowing capacity and usage
+            Your current borrowing utilization rate
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Borrowed: ${borrowStats.totalBorrowed}</span>
-              <span>Max: $1000</span>
+              <span>Utilization Rate</span>
+              <span>{calculateBorrowUtilization().toFixed(1)}%</span>
             </div>
-            <Progress 
-              value={calculateBorrowUtilization()} 
-              className="h-2"
-            />
+            <Progress value={calculateBorrowUtilization()} className="w-full" />
             <p className="text-xs text-muted-foreground">
-              {calculateBorrowUtilization().toFixed(1)}% of your borrowing capacity used
+              {userLoans.filter(loan => loan.status === 'active').reduce((sum, loan) => sum + Number(loan.amount), 0)} / {borrowingCapacity} USDC borrowed
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Active Borrow Positions & History */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Active Borrow Positions */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Active Borrow Positions</CardTitle>
+            <CardDescription>Your currently open loans</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {userLoans.filter(loan => loan.status === 'active').length === 0 ? (
+              <div className="text-muted-foreground text-center py-4">No active borrow positions.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice ID</TableHead>
+                    <TableHead>Borrowed</TableHead>
+                    <TableHead>Interest</TableHead>
+                    <TableHead>Due Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userLoans.filter(loan => loan.status === 'active').map((loan) => (
+                    <TableRow key={loan.invoiceId}>
+                      <TableCell>#{loan.invoiceId}</TableCell>
+                      <TableCell>${loan.amount}</TableCell>
+                      <TableCell>${loan.interestAccrued}</TableCell>
+                      <TableCell>{formatDate(loan.dueDate)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+        {/* Borrow History */}
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Borrow History</CardTitle>
+            <CardDescription>All your past borrow actions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {userLoans.length === 0 ? (
+              <div className="text-muted-foreground text-center py-4">No borrow history found.</div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice ID</TableHead>
+                    <TableHead>Borrowed</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Borrowed On</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {userLoans.map((loan) => (
+                    <TableRow key={loan.invoiceId}>
+                      <TableCell>#{loan.invoiceId}</TableCell>
+                      <TableCell>${loan.amount}</TableCell>
+                      <TableCell>{getLoanStatusBadge(loan)}</TableCell>
+                      <TableCell>{formatDate(loan.borrowTime)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs defaultValue="borrow" className="space-y-4">
         <TabsList>
@@ -240,14 +359,24 @@ export function BorrowInterface() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoiceId">Invoice ID</Label>
-                    <Input
+                    <select
                       id="invoiceId"
-                      placeholder="1"
                       value={borrowForm.invoiceId}
-                      onChange={(e) => setBorrowForm(prev => ({ ...prev, invoiceId: e.target.value }))}
+                      onChange={e => setBorrowForm(prev => ({ ...prev, invoiceId: e.target.value }))}
                       required
                       disabled={isBorrowing}
-                    />
+                      className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    >
+                      <option value="" disabled>Select an invoice</option>
+                      {invoices && invoices.length > 0 && invoices.map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          #{inv.id} — {inv.invoiceId}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Select the numeric token ID (e.g. 1, 2, 3) of your verified invoice. The label shows both the token ID and the human-readable invoice ID.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="amount">Borrow Amount (USDC)</Label>
@@ -299,7 +428,7 @@ export function BorrowInterface() {
               </div>
             </CardHeader>
             <CardContent>
-              {userLoans.length === 0 ? (
+              {userLoans && userLoans.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   {isLoading ? 'Loading your loans...' : 'No loans found. Borrow against your invoices above.'}
                 </div>

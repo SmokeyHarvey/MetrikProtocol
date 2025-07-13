@@ -16,9 +16,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
 
   // Derive role from pathname
-  const role = pathname.includes('/dashboard/supplier') ? 'supplier' 
-    : pathname.includes('/dashboard/lp') ? 'lp'
-    : pathname.includes('/dashboard/owner') ? 'verifier'
+  const role = pathname && pathname.includes('/dashboard/supplier') ? 'supplier' 
+    : pathname && pathname.includes('/dashboard/lp') ? 'lp'
+    : pathname && pathname.includes('/dashboard/owner') ? 'verifier'
     : null;
 
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       return;
     }
     // If a role can't be determined from the pathname and the path is within /dashboard, redirect to home
-    if (!role && pathname.startsWith('/dashboard')) {
+    if (!role && pathname && pathname.startsWith('/dashboard')) {
       router.push('/');
       return;
     }

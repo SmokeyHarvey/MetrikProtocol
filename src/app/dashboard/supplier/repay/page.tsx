@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { useLendingPool } from '@/hooks/useLendingPool';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
+import { BrowserProvider, Contract, parseUnits } from "ethers";
+import faucetAbi from '@/lib/contracts/abis/Faucet.json';
+import usdcAbi from '@/lib/contracts/abis/MockERC20.json';
+
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
+const FAUCET_ADDRESS = "0xC12b08bf710d825C733ED6169f81fF24806f9F2c";
 
 interface LoanDetails {
   amount: string;
@@ -14,7 +20,7 @@ interface LoanDetails {
 }
 
 export default function RepayPage() {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { repay, getUserActiveLoans, getUserLoanDetails, isLoading, error } = useLendingPool();
   const { getInvoiceDetails } = useInvoiceNFT();
 
@@ -24,15 +30,36 @@ export default function RepayPage() {
   const [invoiceDetails, setInvoiceDetails] = useState<any | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [loanDetailsMap, setLoanDetailsMap] = useState<Record<string, LoanDetails | null>>({});
+  const [mintAmount, setMintAmount] = useState("");
+  const [mintLoading, setMintLoading] = useState(false);
 
   const fetchActiveLoans = useCallback(async () => {
     if (address) {
-      console.log('RepayPage: Fetching active loans...');
+      console.log('RepayPage: Fetching active loans for address:', address);
       const loans = await getUserActiveLoans(address);
       console.log('RepayPage: Fetched active loan IDs:', loans);
-      setActiveLoanIds(loans);
+      
+      // Filter out invalid loan IDs (empty, undefined, but allow 0)
+      const validLoans = loans.filter(loanId => 
+        loanId && loanId !== '' && loanId !== 'undefined'
+      );
+      console.log('RepayPage: Filtered valid loan IDs:', validLoans);
+      setActiveLoanIds(validLoans);
+      
+      // Debug: Check if we have any loans and try to get details for the first one
+      if (validLoans.length > 0) {
+        console.log('RepayPage: Found valid loans, checking details for first loan:', validLoans[0]);
+        try {
+          const firstLoanDetails = await getUserLoanDetails(address, validLoans[0]);
+          console.log('RepayPage: First loan details:', firstLoanDetails);
+        } catch (err) {
+          console.error('RepayPage: Error getting first loan details:', err);
+        }
+      } else {
+        console.log('RepayPage: No valid loans found');
+      }
     }
-  }, [address, getUserActiveLoans]);
+  }, [address, getUserActiveLoans, getUserLoanDetails]);
 
   useEffect(() => {
     fetchActiveLoans();
@@ -93,6 +120,12 @@ export default function RepayPage() {
       return;
     }
 
+    // Additional validation - allow '0' as valid
+    if (selectedInvoiceId === '') {
+      console.error('RepayPage: Invalid invoice ID selected.');
+      return;
+    }
+
     try {
       console.log('RepayPage: Initiating repay for invoice', selectedInvoiceId);
       await repay(selectedInvoiceId);
@@ -122,6 +155,34 @@ export default function RepayPage() {
     setSelectedInvoiceId(loanId);
     await handleRepay();
   };
+
+  // Mint USDC function
+  async function mintUSDC() {
+    if (!window.ethereum || !address) {
+      alert("Connect your wallet first.");
+      return;
+    }
+    setMintLoading(true);
+    try {
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
+      if (!mintAmount || isNaN(Number(mintAmount)) || Number(mintAmount) <= 0) {
+        alert("Enter a valid amount");
+        setMintLoading(false);
+        return;
+      }
+      const decimals = 6;
+      const amt = parseUnits(mintAmount, decimals);
+      const tx = await faucet.claim(USDC_ADDRESS, amt);
+      await tx.wait();
+      alert(`Minted ${mintAmount} USDC to your wallet!`);
+    } catch (err: any) {
+      alert(err.message || "Mint failed");
+    } finally {
+      setMintLoading(false);
+    }
+  }
 
   // UI
   return (
@@ -201,6 +262,31 @@ export default function RepayPage() {
               {error.message}
             </div>
           )}
+        </div>
+        
+        {/* Mint USDC Section */}
+        <div className="mt-8 border-t pt-6">
+          <h2 className="text-lg font-semibold mb-2">Faucet: Mint USDC</h2>
+          <div className="flex flex-col sm:flex-row gap-4 items-center">
+            <input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="Amount of USDC"
+              value={mintAmount}
+              onChange={e => setMintAmount(e.target.value)}
+              className="border rounded px-3 py-2 mb-2 w-40"
+              disabled={mintLoading}
+            />
+            <button
+              onClick={mintUSDC}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+              disabled={mintLoading || !isConnected}
+            >
+              Mint USDC
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">You can mint any amount of USDC tokens to your wallet to repay your loans.</p>
         </div>
       </div>
     </div>

@@ -28,6 +28,18 @@ interface RawInvoice {
   isVerified: boolean;
 }
 
+// New interface for invoice details with metadata
+export interface InvoiceDetails {
+  invoiceId: string;
+  supplier: Address;
+  buyer: Address;
+  creditAmount: bigint;
+  dueDate: bigint;
+  ipfsHash: string;
+  isVerified: boolean;
+  metadata?: string; // Additional metadata field
+}
+
 export function useInvoiceNFT() {
   const { contract: invoiceNFTContract } = useContract('invoiceNFT');
   const { data: walletClient } = useWalletClient();
@@ -99,12 +111,13 @@ export function useInvoiceNFT() {
     }
   }, [publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
-  const createInvoice = useCallback(async (
-    creditAmount: string,
+  // New function to mint invoice NFT with metadata
+  const mintInvoiceNFT = useCallback(async (
+    supplier: Address,
+    uniqueId: string,
+    amount: string,
     dueDate: Date,
-    buyer: Address,
-    invoiceId: string,
-    ipfsHash: string
+    metadata: string
   ) => {
     try {
       setIsLoading(true);
@@ -114,7 +127,7 @@ export function useInvoiceNFT() {
         throw new Error('Wallet client, address, or public client not available.');
       }
 
-      const parsedAmount = parseAmount(creditAmount);
+      const parsedAmount = parseAmount(amount);
       const dueDateTimestamp = BigInt(Math.floor(dueDate.getTime() / 1000));
 
       const { request } = await publicClient.simulateContract({
@@ -122,7 +135,7 @@ export function useInvoiceNFT() {
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'mintInvoiceNFT',
-        args: [buyer, invoiceId, parsedAmount, dueDateTimestamp, ipfsHash],
+        args: [supplier, uniqueId, parsedAmount, dueDateTimestamp, metadata],
       });
 
       const hash = await walletClient.writeContract(request);
@@ -133,18 +146,19 @@ export function useInvoiceNFT() {
         await fetchInvoices(address);
       }
 
-      toast.success('Invoice created successfully!');
+      toast.success('Invoice NFT minted successfully!');
       return hash;
     } catch (err) {
-      console.error('Error creating invoice:', err);
+      console.error('Error minting invoice NFT:', err);
       setError(err as Error);
-      toast.error('Error creating invoice. Please try again.');
+      toast.error('Error minting invoice NFT. Please try again.');
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi, fetchInvoices]);
+  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
+  // New function to verify invoice
   const verifyInvoice = useCallback(async (tokenId: string) => {
     try {
       setIsLoading(true);
@@ -159,7 +173,7 @@ export function useInvoiceNFT() {
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'verifyInvoice',
-        args: [tokenId],
+        args: [BigInt(tokenId)],
       });
 
       const hash = await walletClient.writeContract(request);
@@ -187,9 +201,10 @@ export function useInvoiceNFT() {
         await fetchInvoices(address);
       }
     }
-  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi, fetchInvoices]);
+  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
-  const getInvoiceDetails = useCallback(async (tokenId: string) => {
+  // New function to get invoice details
+  const getInvoiceDetails = useCallback(async (tokenId: string): Promise<InvoiceDetails | null> => {
     try {
       if (!publicClient || !invoiceNFTContract.address || !invoiceNFTContract.abi) {
         return null;
@@ -199,25 +214,13 @@ export function useInvoiceNFT() {
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'getInvoiceDetails',
-        args: [tokenId],
-      }) as RawInvoice;
+        args: [BigInt(tokenId)],
+      });
 
-      if (result) {
-        return {
-          id: tokenId,
-          invoiceId: result.invoiceId,
-          supplier: result.supplier,
-          buyer: result.buyer,
-          creditAmount: formatAmount(result.creditAmount),
-          dueDate: new Date(Number(result.dueDate) * 1000),
-          ipfsHash: result.ipfsHash,
-          isVerified: result.isVerified
-        };
-      }
-      return null;
+      return result as InvoiceDetails;
     } catch (err) {
-      console.error('Error getting invoice details:', err);
-      throw err;
+      console.error('Error fetching invoice details:', err);
+      return null;
     }
   }, [publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
@@ -330,7 +333,7 @@ export function useInvoiceNFT() {
     error,
     invoices,
     fetchInvoices,
-    createInvoice,
+    createInvoice: mintInvoiceNFT, // Renamed to reflect new mint function
     verifyInvoice,
     getInvoiceDetails,
     checkVerificationStatus,

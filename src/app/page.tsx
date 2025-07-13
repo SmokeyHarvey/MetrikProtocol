@@ -11,7 +11,7 @@ import faucetAbi from "@/lib/contracts/abis/Faucet.json";
 
 const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
-const FAUCET_ADDRESS = "0x047B41c1E11331f7C8BB8Cc2343b34Ec1336772D";
+const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
 
 export default function Home() {
   const router = useRouter();

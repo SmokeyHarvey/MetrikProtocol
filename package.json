@@ -12,6 +12,7 @@
     "mint-tokens-citrea": "node scripts/mint-tokens-citrea.js"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@pinata/sdk": "^2.1.0",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-progress": "^1.1.7",
