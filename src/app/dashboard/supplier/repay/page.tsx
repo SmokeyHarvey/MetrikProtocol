@@ -4,12 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { useLendingPool } from '@/hooks/useLendingPool';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
-import { BrowserProvider, Contract, parseUnits } from "ethers";
+import { encodeFunctionData } from 'viem';
+import { useSendTransaction } from '@privy-io/react-auth';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
 import usdcAbi from '@/lib/contracts/abis/MockERC20.json';
+import { useWallets } from '@privy-io/react-auth';
+import { useDisconnect } from 'wagmi';
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
-const FAUCET_ADDRESS = "0xC12b08bf710d825C733ED6169f81fF24806f9F2c";
+const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
 
 interface LoanDetails {
   amount: string;
@@ -20,9 +23,15 @@ interface LoanDetails {
 }
 
 export default function RepayPage() {
-  const { address, isConnected } = useAccount();
-  const { repay, getUserActiveLoans, getUserLoanDetails, isLoading, error } = useLendingPool();
-  const { getInvoiceDetails } = useInvoiceNFT();
+  const { wallets } = useWallets();
+  const { disconnect } = useDisconnect();
+  useEffect(() => {
+    disconnect();
+  }, [disconnect]);
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
+  const { repay, getUserActiveLoans, getUserLoanDetails, isLoading, error } = useLendingPool(address);
+  const { getInvoiceDetails } = useInvoiceNFT(address);
 
   const [activeLoanIds, setActiveLoanIds] = useState<string[]>([]);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
@@ -32,6 +41,7 @@ export default function RepayPage() {
   const [loanDetailsMap, setLoanDetailsMap] = useState<Record<string, LoanDetails | null>>({});
   const [mintAmount, setMintAmount] = useState("");
   const [mintLoading, setMintLoading] = useState(false);
+  const { sendTransaction } = useSendTransaction();
 
   const fetchActiveLoans = useCallback(async () => {
     if (address) {
@@ -158,24 +168,30 @@ export default function RepayPage() {
 
   // Mint USDC function
   async function mintUSDC() {
-    if (!window.ethereum || !address) {
+    if (!address) {
       alert("Connect your wallet first.");
       return;
     }
     setMintLoading(true);
     try {
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
       if (!mintAmount || isNaN(Number(mintAmount)) || Number(mintAmount) <= 0) {
         alert("Enter a valid amount");
         setMintLoading(false);
         return;
       }
       const decimals = 6;
-      const amt = parseUnits(mintAmount, decimals);
-      const tx = await faucet.claim(USDC_ADDRESS, amt);
-      await tx.wait();
+      const amt = BigInt(Math.floor(Number(mintAmount) * 10 ** decimals));
+      const data = encodeFunctionData({
+        abi: faucetAbi,
+        functionName: 'claim',
+        args: [USDC_ADDRESS, amt]
+      });
+      const { hash } = await sendTransaction({
+        to: FAUCET_ADDRESS,
+        data,
+        value: 0n,
+        chainId: 5115 // or your testnet chainId
+      });
       alert(`Minted ${mintAmount} USDC to your wallet!`);
     } catch (err: any) {
       alert(err.message || "Mint failed");
@@ -281,7 +297,7 @@ export default function RepayPage() {
             <button
               onClick={mintUSDC}
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-              disabled={mintLoading || !isConnected}
+              disabled={mintLoading || !address}
             >
               Mint USDC
             </button>

@@ -5,6 +5,7 @@ import { parseAmount, formatAmount } from '@/lib/utils/contracts';
 import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets } from '@privy-io/react-auth';
 
 export interface Invoice {
   id: string;
@@ -35,11 +36,14 @@ export interface InvoiceStats {
   totalValue: string;
 }
 
-export function useInvoice() {
+export function useInvoice(addressOverride?: string) {
   const { contract: invoiceNFTContract } = useContract('invoiceNFT');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { wallets } = useWallets();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = addressOverride || privyWallet?.address || wagmiAddress;
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [userInvoices, setUserInvoices] = useState<Invoice[]>([]);

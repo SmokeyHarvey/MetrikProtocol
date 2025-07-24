@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRepay } from '@/hooks/useRepay';
+import { useWallets } from '@privy-io/react-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,9 @@ import { Loader2, DollarSign, CreditCard, Clock, AlertTriangle, CheckCircle, Ref
 import { toast } from 'react-toastify';
 
 export function RepayInterface() {
+  const { wallets } = useWallets();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
   const {
     outstandingLoans,
     repaymentStats,
@@ -23,7 +27,7 @@ export function RepayInterface() {
     animatedStats,
     animatedUsdcBalance,
     refetch,
-  } = useRepay();
+  } = useRepay(address);
 
   const [repayForm, setRepayForm] = useState({
     invoiceId: '',

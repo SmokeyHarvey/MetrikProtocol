@@ -25,6 +25,7 @@ export const config = createConfig({
     [SUPPORTED_CHAINS[0].id]: http(),
     [SUPPORTED_CHAINS[1].id]: http(),
   },
+  autoConnect: false,
 });
 
 type ContractConfig = {

@@ -2,8 +2,12 @@ import { useState, useCallback, useEffect } from 'react';
 import { useContract } from './useContract';
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { parseAmount, formatAmount } from '@/lib/utils/contracts';
+import { type Hash } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets, useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { useSeamlessTransaction } from './useSeamlessTransaction';
 
 export interface RepaymentLoan {
   invoiceId: string;
@@ -25,12 +29,18 @@ export interface RepaymentStats {
   totalRepaid: string;
 }
 
-export function useRepay() {
+export function useRepay(addressOverride?: string) {
   const { contract: lendingPoolContract } = useContract('lendingPool');
   const { contract: usdcContract } = useContract('usdc');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { executeBatchTransactions } = useSeamlessTransaction();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const isPrivy = !!(addressOverride || privyWallet?.address);
+  const address = addressOverride || privyWallet?.address || wagmiAddress;
 
   const [outstandingLoans, setOutstandingLoans] = useState<RepaymentLoan[]>([]);
   const [repaymentStats, setRepaymentStats] = useState<RepaymentStats>({
@@ -179,6 +189,40 @@ export function useRepay() {
       setIsLoading(true);
       setError(null);
 
+      if (isPrivy) {
+        // Use seamless batch transactions for suppliers
+        const loanDetails = await getLoanDetails(invoiceId);
+        if (!loanDetails) {
+          throw new Error('Loan not found or not active.');
+        }
+        const requiredAmount = parseAmount(loanDetails.totalAmount);
+        
+        // Execute approve and repay in one seamless batch
+        const transactions = [
+          {
+            to: usdcContract.address,
+            data: encodeFunctionData({
+              abi: usdcContract.abi,
+              functionName: 'approve',
+              args: [lendingPoolContract.address, requiredAmount],
+            }),
+          },
+          {
+            to: lendingPoolContract.address,
+            data: encodeFunctionData({
+              abi: lendingPoolContract.abi,
+              functionName: 'repay',
+              args: [BigInt(invoiceId)],
+            }),
+          },
+        ];
+
+        const results = await executeBatchTransactions(transactions, publicClient?.chain.id);
+        await fetchOutstandingLoans();
+        await fetchUsdcBalance();
+        toast.success('Repayment successful!');
+        return results[1].hash; // Return the repay transaction hash
+      }
       if (!walletClient || !address || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
@@ -235,7 +279,7 @@ export function useRepay() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, publicClient, lendingPoolContract.address, lendingPoolContract.abi, usdcContract.address, usdcContract.abi, getLoanDetails, usdcBalance, fetchOutstandingLoans, fetchUsdcBalance]);
+  }, [walletClient, address, publicClient, lendingPoolContract.address, lendingPoolContract.abi, usdcContract.address, usdcContract.abi, getLoanDetails, usdcBalance, fetchOutstandingLoans, fetchUsdcBalance, isPrivy, sendTransaction, executeBatchTransactions]);
 
   const calculateInterest = useCallback(async (principal: string, startTime: Date) => {
     try {

@@ -13,8 +13,12 @@ import { Loader2, Plus, FileText, DollarSign, CheckCircle, XCircle, Upload } fro
 import { toast } from 'react-toastify';
 import { generateEIP681URI } from '@/utils/eip681';
 import { useAccount } from 'wagmi';
+import { useWallets } from '@privy-io/react-auth';
 
 export function InvoiceInterface() {
+  const { wallets } = useWallets();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
   const { 
     invoices, 
     isLoading, 
@@ -23,12 +27,8 @@ export function InvoiceInterface() {
     verifyInvoice,
     getInvoiceDetails,
     fetchInvoices,
-    // Add userInvoices from the hook
     userInvoices
-  } = useInvoiceNFT();
-  
-  // Get address from wagmi
-  const { address } = useAccount();
+  } = useInvoiceNFT(address);
 
   // Helper to generate a unique invoice ID
   function generateInvoiceId(addr?: string) {
@@ -114,14 +114,6 @@ export function InvoiceInterface() {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    }).format(date);
-  };
-
   const getStatusBadge = (isVerified: boolean) => {
     return isVerified ? (
       <Badge variant="default" className="bg-green-100 text-green-800">
@@ -177,7 +169,7 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                ${invoices ? invoices.reduce((sum, inv) => sum + parseFloat(inv.creditAmount), 0).toFixed(2) : '0.00'}
+                ${invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.creditAmount) / 1e18), 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
@@ -406,8 +398,8 @@ export function InvoiceInterface() {
                         <TableRow key={invoice.id}>
                           <TableCell>{invoice.invoiceId}</TableCell>
                           <TableCell>{invoice.supplier}</TableCell>
-                          <TableCell>{invoice.creditAmount} USDC</TableCell>
-                          <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                          <TableCell>{(Number(invoice.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
+                          <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">
@@ -468,8 +460,8 @@ export function InvoiceInterface() {
                         <TableRow key={invoice.id}>
                           <TableCell>{invoice.invoiceId}</TableCell>
                           <TableCell>{invoice.supplier}</TableCell>
-                          <TableCell>{invoice.creditAmount} USDC</TableCell>
-                          <TableCell>{formatDate(invoice.dueDate)}</TableCell>
+                          <TableCell>{(Number(invoice.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
+                          <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">

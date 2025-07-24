@@ -4,7 +4,10 @@ import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { parseAmount, formatAmount } from '@/lib/utils/contracts';
 import { type Address } from 'viem';
 import { toast } from 'react-toastify';
-import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
+import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets, useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { useSeamlessTransaction } from './useSeamlessTransaction';
 
 export interface Invoice {
   id: string;
@@ -40,11 +43,18 @@ export interface InvoiceDetails {
   metadata?: string; // Additional metadata field
 }
 
-export function useInvoiceNFT() {
+export function useInvoiceNFT(address?: Address) {
+  console.log('useInvoiceNFT hook called with address:', address);
   const { contract: invoiceNFTContract } = useContract('invoiceNFT');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: currentAddress } = useAccount();
+  const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { executeTransaction } = useSeamlessTransaction();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const isPrivy = !!privyWallet?.address;
+  const readClient = publicClient;
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [userInvoices, setUserInvoices] = useState<Invoice[]>([]);
@@ -52,70 +62,67 @@ export function useInvoiceNFT() {
   const [error, setError] = useState<Error | null>(null);
 
   const fetchInvoices = useCallback(async (userAddress: Address) => {
-    if (!publicClient || !invoiceNFTContract.address || !invoiceNFTContract.abi) {
+    console.log('useInvoiceNFT fetchInvoices debug:', {
+      readClient,
+      contractAddress: invoiceNFTContract.address,
+      abi: invoiceNFTContract.abi,
+      userAddress
+    });
+    if (!readClient || !invoiceNFTContract.address || !invoiceNFTContract.abi || !userAddress) {
       setInvoices([]);
+      setError(new Error('Fetch invoices: missing address or contract.'));
       return;
     }
-
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Get total supply first
-      const totalSupply = await publicClient.readContract({
+      // Read totalSupply
+      const totalSupply = await readClient.readContract({
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'totalSupply',
-      }) as bigint;
-
-      const invoicePromises = [];
-
-      // Fetch all invoices
+      });
+      console.log('useInvoiceNFT: totalSupply result:', totalSupply);
+      // For each token, get tokenId and details
+      const invoicesArr = [];
       for (let i = 0; i < Number(totalSupply); i++) {
-        const tokenId = await publicClient.readContract({
+        try {
+          const tokenId = await readClient.readContract({
           address: invoiceNFTContract.address,
           abi: invoiceNFTContract.abi,
           functionName: 'tokenByIndex',
-          args: [i],
-        }) as bigint;
-
-        const invoiceDetails = await publicClient.readContract({
+            args: [BigInt(i)],
+          });
+          console.log(`useInvoiceNFT: tokenByIndex(${i}) result:`, tokenId);
+          const invoice = await readClient.readContract({
           address: invoiceNFTContract.address,
           abi: invoiceNFTContract.abi,
           functionName: 'getInvoiceDetails',
           args: [tokenId],
-        }) as RawInvoice;
-
-        if (invoiceDetails) {
-          invoicePromises.push({
-            id: tokenId.toString(),
-            invoiceId: invoiceDetails.invoiceId,
-            supplier: invoiceDetails.supplier,
-            buyer: invoiceDetails.buyer,
-            creditAmount: formatAmount(invoiceDetails.creditAmount),
-            dueDate: new Date(Number(invoiceDetails.dueDate) * 1000),
-            ipfsHash: invoiceDetails.ipfsHash,
-            isVerified: invoiceDetails.isVerified
           });
+          console.log(`useInvoiceNFT: getInvoice(${tokenId}) result:`, invoice);
+          invoicesArr.push({ id: tokenId, ...invoice });
+        } catch (err) {
+          console.error(`useInvoiceNFT: Error fetching token/index ${i}:`, err);
         }
       }
-
-      // Remove unnecessary Promise.all, use array directly
-      const formattedInvoices = invoicePromises;
-      setInvoices(formattedInvoices);
-      return formattedInvoices;
+      setInvoices(invoicesArr);
+      setError(null);
     } catch (err) {
-      console.error('Error fetching invoices:', err);
-      setError(err as Error);
-      throw err;
-    } finally {
-      setIsLoading(false);
+      console.error('useInvoiceNFT: Error in fetchInvoices:', err);
+      setInvoices([]);
+      setError(err instanceof Error ? err : new Error('Unknown error fetching invoices'));
     }
-  }, [publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+  }, [readClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
   const fetchUserInvoices = useCallback(async (userAddress: Address) => {
-    if (!publicClient || !invoiceNFTContract.address || !invoiceNFTContract.abi) {
+    console.log('useInvoiceNFT fetchUserInvoices debug:', {
+      readClient,
+      contractAddress: invoiceNFTContract.address,
+      abi: invoiceNFTContract.abi,
+      userAddress
+    });
+    if (!readClient || !invoiceNFTContract.address || !invoiceNFTContract.abi) {
       setUserInvoices([]);
+      setError(new Error('Fetch user invoices: missing address or contract.'));
       return;
     }
 
@@ -124,7 +131,7 @@ export function useInvoiceNFT() {
       setError(null);
 
       // Get user's balance
-      const balance = await publicClient.readContract({
+      const balance = await readClient.readContract({
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'balanceOf',
@@ -135,14 +142,14 @@ export function useInvoiceNFT() {
 
       // Fetch user's invoices
       for (let i = 0; i < Number(balance); i++) {
-        const tokenId = await publicClient.readContract({
+        const tokenId = await readClient.readContract({
           address: invoiceNFTContract.address,
           abi: invoiceNFTContract.abi,
           functionName: 'tokenOfOwnerByIndex',
           args: [userAddress, i],
         }) as bigint;
 
-        const invoiceDetails = await publicClient.readContract({
+        const invoiceDetails = await readClient.readContract({
           address: invoiceNFTContract.address,
           abi: invoiceNFTContract.abi,
           functionName: 'getInvoiceDetails',
@@ -174,7 +181,7 @@ export function useInvoiceNFT() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+  }, [readClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
   // New function to mint invoice NFT with metadata
   const mintInvoiceNFT = useCallback(async (
@@ -187,31 +194,43 @@ export function useInvoiceNFT() {
     try {
       setIsLoading(true);
       setError(null);
-
-      if (!walletClient || !address || !publicClient) {
-        throw new Error('Wallet client, address, or public client not available.');
-      }
-
       const parsedAmount = parseAmount(amount);
       const dueDateTimestamp = BigInt(Math.floor(dueDate.getTime() / 1000));
-
+      if (isPrivy) {
+        const data = encodeFunctionData({
+          abi: invoiceNFTContract.abi,
+          functionName: 'mintInvoiceNFT',
+          args: [supplier, uniqueId, parsedAmount, dueDateTimestamp, metadata],
+        });
+        const hash = await executeTransaction(
+          invoiceNFTContract.address,
+          data,
+          0n,
+          publicClient?.chain.id
+        );
+        if (supplier) {
+          await fetchInvoices(supplier);
+          await fetchUserInvoices(supplier);
+        }
+        toast.success('Invoice NFT minted successfully!');
+        return hash;
+      }
+      if (!walletClient || !currentAddress || !publicClient) {
+        throw new Error('Wallet client, address, or public client not available.');
+      }
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: currentAddress,
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'mintInvoiceNFT',
         args: [supplier, uniqueId, parsedAmount, dueDateTimestamp, metadata],
       });
-
       const hash = await walletClient.writeContract(request);
       await publicClient.waitForTransactionReceipt({ hash });
-
-      // Refresh invoices list
-      if (address) {
-        await fetchInvoices(address);
-        await fetchUserInvoices(address);
+      if (currentAddress) {
+        await fetchInvoices(currentAddress);
+        await fetchUserInvoices(currentAddress);
       }
-
       toast.success('Invoice NFT minted successfully!');
       return hash;
     } catch (err) {
@@ -222,54 +241,58 @@ export function useInvoiceNFT() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+  }, [walletClient, currentAddress, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi, isPrivy, executeTransaction, fetchInvoices, fetchUserInvoices]);
 
   // New function to verify invoice
   const verifyInvoice = useCallback(async (tokenId: string) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      if (!walletClient || !address || !publicClient) {
+      if (isPrivy) {
+        const data = encodeFunctionData({
+          abi: invoiceNFTContract.abi,
+          functionName: 'verifyInvoice',
+          args: [BigInt(tokenId)],
+        });
+        const { hash } = await sendTransaction({
+          to: invoiceNFTContract.address,
+          data,
+          value: 0n,
+          chainId: publicClient?.chain.id,
+        });
+        await publicClient?.waitForTransactionReceipt({ hash });
+        if (privyWallet?.address) {
+          await fetchInvoices(privyWallet.address);
+        }
+        toast.success('Invoice verified successfully!');
+        return hash;
+      }
+      if (!walletClient || !currentAddress || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
-
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: currentAddress,
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'verifyInvoice',
         args: [BigInt(tokenId)],
       });
-
       const hash = await walletClient.writeContract(request);
       await publicClient.waitForTransactionReceipt({ hash });
-
-      // Refresh invoices list
-      if (address) {
-        await fetchInvoices(address);
-        await fetchUserInvoices(address);
+      if (currentAddress) {
+        await fetchInvoices(currentAddress);
       }
-
       toast.success('Invoice verified successfully!');
       return hash;
-    } catch (err: any) {
-      let shortMsg = 'Error verifying invoice. Please try again.';
-      if (err && err.message && err.message.includes('Invoice already verified')) {
-        shortMsg = 'Invoice is already verified.';
-      }
-      setError(new Error(shortMsg));
-      toast.error(shortMsg);
-      // Do not throw the full error to avoid UI breakage
+    } catch (err) {
+      console.error('Error verifying invoice:', err);
+      setError(err as Error);
+      toast.error('Error verifying invoice. Please try again.');
+      throw err;
     } finally {
       setIsLoading(false);
-      // Always refresh invoices after any attempt
-      if (address) {
-        await fetchInvoices(address);
-        await fetchUserInvoices(address);
-      }
     }
-  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+  }, [walletClient, currentAddress, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi, isPrivy, sendTransaction, fetchInvoices, privyWallet]);
 
   // New function to get invoice details
   const getInvoiceDetails = useCallback(async (tokenId: string): Promise<InvoiceDetails | null> => {
@@ -343,12 +366,12 @@ export function useInvoiceNFT() {
       setIsLoading(true);
       setError(null);
 
-      if (!walletClient || !address || !publicClient) {
+      if (!walletClient || !currentAddress || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
 
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: currentAddress,
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'approve',
@@ -367,7 +390,7 @@ export function useInvoiceNFT() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+  }, [walletClient, currentAddress, publicClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
 
   const isInvoiceApproved = useCallback(async (tokenId: string) => {
     try {
@@ -391,9 +414,14 @@ export function useInvoiceNFT() {
 
   // Effect to fetch invoices when address changes
   useEffect(() => {
-    if (address) {
+    console.log('useInvoiceNFT useEffect running with address:', address);
+    if (address && typeof address === 'string' && address.length > 0) {
+      console.log('useInvoiceNFT: Fetching invoices for address:', address);
       fetchInvoices(address);
       fetchUserInvoices(address);
+    } else {
+      console.log('useInvoiceNFT: Skipping fetch, missing address:', address);
+      setError(new Error('Effect: missing address, not fetching invoices.'));
     }
   }, [address, fetchInvoices, fetchUserInvoices]);
 

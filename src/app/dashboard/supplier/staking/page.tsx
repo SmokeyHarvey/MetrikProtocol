@@ -2,11 +2,20 @@
 
 import { StakingInterface } from '@/components/contracts/StakingInterface';
 import { SupplierStakingHistory } from '@/components/dashboard/SupplierStakingHistory';
+import { SessionSignerTest } from '@/components/ui/SessionSignerTest';
 import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import * as Privy from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
 import { BrowserProvider, Contract, parseUnits, keccak256, toUtf8Bytes } from 'ethers';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
 import metrikAbi from '@/lib/contracts/abis/MockERC20.json';
+import { useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { useDisconnect } from 'wagmi';
+import { useSeamlessTransaction } from '@/hooks/useSeamlessTransaction';
+
+console.log('Staking page loaded');
+console.log('Privy exports:', Privy);
 
 const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
 const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
@@ -40,31 +49,75 @@ function GrantMinterRoleButton({ address }: { address: string }) {
   );
 }
 
+function PrivyAddressDebug() {
+  const { ready, authenticated, user } = Privy.usePrivy();
+  const { wallets } = Privy.useWallets();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
+
+  console.log('Privy wallets:', wallets);
+  console.log('Privy user:', user);
+
+  if (!ready) return <div>Loading Privy...</div>;
+  if (!authenticated) return <div>Not authenticated</div>;
+
+  return (
+    <div style={{background: '#e6f7ff', color: '#005580', padding: '12px', borderRadius: '4px', marginBottom: '12px'}}>
+      <div><strong>User Email:</strong> {user?.email?.address || 'N/A'}</div>
+      <div><strong>Privy Wallet Address:</strong> {address || 'N/A'}</div>
+      <div><strong>Wallet Type:</strong> {privyWallet?.walletClientType || 'N/A'}</div>
+    </div>
+  );
+}
+
 export default function StakingPage() {
-  const { address, isConnected } = useAccount();
+  const { ready, authenticated } = Privy.usePrivy();
+  const { wallets } = Privy.useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { executeTransaction } = useSeamlessTransaction();
+  const { disconnect } = useDisconnect();
+  const router = useRouter();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
+
+  useEffect(() => {
+    // Disconnect injected wallets for suppliers
+    disconnect();
+    console.log('Privy ready:', ready, 'authenticated:', authenticated);
+    if (ready && !authenticated) {
+      router.push('/');
+    }
+  }, [ready, authenticated, router, disconnect]);
+
+  if (!ready) return <div>Loading...</div>;
+  if (!authenticated) return null;
 
   async function mintMetrik() {
-    if (!window.ethereum || !address) {
-      alert("Connect your wallet first.");
+    if (!address) {
+      alert("Login first.");
       return;
     }
     setLoading(true);
     try {
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
-      if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-        alert("Enter a valid amount");
-        setLoading(false);
-        return;
-      }
       const decimals = 18;
-      const amt = parseUnits(amount, decimals);
-      const tx = await faucet.claim(METRIK_ADDRESS, amt);
-      await tx.wait();
-      alert(`Minted ${amount} METRIK to your wallet!`);
+      const amt = BigInt(parseUnits(amount, decimals).toString());
+      const data = encodeFunctionData({
+        abi: faucetAbi,
+        functionName: 'claim',
+        args: [METRIK_ADDRESS, amt],
+      });
+      
+      // Use seamless transaction for suppliers
+      const hash = await executeTransaction(
+        FAUCET_ADDRESS,
+        data,
+        0n,
+        5115 // Citrea Testnet
+      );
+      
+      alert(`Minted ${amount} METRIK to your Privy wallet (${address})! Tx: ${hash}`);
     } catch (err: any) {
       alert(err.message || "Mint failed");
     } finally {
@@ -74,9 +127,14 @@ export default function StakingPage() {
 
   return (
     <div className="space-y-6">
+      <PrivyAddressDebug />
+      <div style={{background: '#fffae6', color: '#b26a00', padding: '8px', borderRadius: '4px', marginBottom: '12px'}}>
+        <strong>DEBUG:</strong> Privy ready: {String(ready)}, authenticated: {String(authenticated)}, address: {address || 'N/A'}
+      </div>
       {address && <GrantMinterRoleButton address={address} />}
       <StakingInterface />
       <SupplierStakingHistory />
+      <SessionSignerTest />
       <div className="mt-8 border-t pt-6">
         <h2 className="text-lg font-semibold mb-2">Faucet: Mint Metrik</h2>
         <div className="flex flex-col sm:flex-row gap-4 items-center">
@@ -93,7 +151,7 @@ export default function StakingPage() {
           <button
             onClick={mintMetrik}
             className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-            disabled={loading || !isConnected}
+            disabled={loading || !address}
           >
             Mint Metrik
           </button>

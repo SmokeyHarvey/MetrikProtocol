@@ -5,6 +5,9 @@ import { parseAmount, formatAmount } from '@/lib/utils/contracts';
 import { type Hash } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets, useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { useSeamlessTransaction } from './useSeamlessTransaction';
 
 // Types for the new staking functions
 export interface StakeInfo {
@@ -27,12 +30,19 @@ export interface StakeUsage {
   free: bigint;
 }
 
-export function useStaking() {
+export function useStaking(addressOverride?: string) {
   const { contract: stakingContract } = useContract('staking');
   const { contract: metrikContract } = useContract('metrikToken');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { executeBatchTransactions, executeTransaction, preApproveToken } = useSeamlessTransaction();
+  // Use override if provided, else embedded wallet, else Wagmi address
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = addressOverride || privyWallet?.address || wagmiAddress;
+  const isPrivy = !!(addressOverride || privyWallet?.address);
 
   const [stakedAmount, setStakedAmount] = useState<string>('0');
   const [rewards, setRewards] = useState<string>('0');
@@ -334,31 +344,38 @@ export function useStaking() {
         throw new Error(`Error fetching METRIK balance: ${balanceError?.message}`);
       }
 
-      const parsedAmount = parseAmount(amount);
-      
-      // Check if user has enough balance
-      if (typeof metrikBalance !== 'bigint') {
-        throw new Error('Invalid METRIK balance format. Please try again.');
+      if (isPrivy) {
+        // Use seamless transactions for suppliers with better messaging
+        const parsedAmount = parseAmount(amount);
+        const safeDuration = BigInt(Math.max(0, Math.floor(duration || 0)));
+        const durationInSeconds = safeDuration * BigInt(24 * 60 * 60);
+        
+        toast.info('Setting up your stake... This may require one approval for future transactions.');
+        
+        // Execute approve and stake in one seamless batch
+        const transactions = [
+          {
+            to: metrikContract.address,
+            data: encodeFunctionData({
+              abi: metrikContract.abi,
+              functionName: 'approve',
+              args: [stakingContract.address, parsedAmount],
+            }),
+          },
+          {
+            to: stakingContract.address,
+            data: encodeFunctionData({
+              abi: stakingContract.abi,
+              functionName: 'stake',
+              args: [parsedAmount, durationInSeconds],
+            }),
+          },
+        ];
+
+        const results = await executeBatchTransactions(transactions, publicClient?.chain.id);
+        toast.success('Stake successful! Your tokens are now staked.');
+        return results[1].hash; // Return the stake transaction hash
       }
-
-      if (parsedAmount > metrikBalance) {
-        throw new Error(`Insufficient METRIK balance. You have ${formatAmount(metrikBalance)} but trying to stake ${amount}.`);
-      }
-
-      console.log(`Approving ${parsedAmount.toString()} METRIK for staking contract...`);
-
-      // Explicitly ensure duration is a safe BigInt
-      const safeDuration = BigInt(Math.max(0, Math.floor(duration || 0)));
-      // Convert days to seconds (1 day = 24 * 60 * 60 seconds)
-      const durationInSeconds = safeDuration * BigInt(24 * 60 * 60);
-
-      console.log('Approving METRIK tokens...', {
-        spender: stakingContract.address,
-        amount: parsedAmount.toString(),
-        balance: metrikBalance.toString(),
-        address,
-        duration: durationInSeconds.toString()
-      });
 
       if (!walletClient) {
         throw new Error('Wallet client not available. Please ensure your wallet is connected.');
@@ -440,7 +457,7 @@ export function useStaking() {
     } finally {
       setIsLoading(false);
     }
-  }, [stakingContract, metrikContract, metrikBalance, address, isBalanceLoading, isBalanceError, balanceError, walletClient, publicClient]);
+  }, [stakingContract, metrikContract, metrikBalance, address, isBalanceLoading, isBalanceError, balanceError, walletClient, publicClient, sendTransaction, isPrivy, executeBatchTransactions]);
 
   const unstake = useCallback(async () => {
     try {
@@ -449,6 +466,27 @@ export function useStaking() {
       if (!stakingContract || !stakingContract.address || !stakingContract.abi) {
         throw new Error('Staking contract not available.');
       }
+      
+      if (isPrivy) {
+        // Use seamless transaction for suppliers
+        toast.info('Processing your unstake request...');
+        
+        const data = encodeFunctionData({
+          abi: stakingContract.abi,
+          functionName: 'unstake',
+        });
+        
+        const hash = await executeTransaction(
+          stakingContract.address,
+          data,
+          0n,
+          publicClient?.chain.id
+        );
+        
+        toast.success('Unstake successful! Your tokens have been returned.');
+        return hash;
+      }
+      
       if (!walletClient || !address || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
@@ -468,7 +506,7 @@ export function useStaking() {
     } finally {
       setIsLoading(false);
     }
-  }, [stakingContract, walletClient, publicClient, address]);
+  }, [stakingContract, walletClient, publicClient, address, isPrivy, executeTransaction]);
 
   const claimRewards = useCallback(async () => {
     try {
@@ -477,6 +515,27 @@ export function useStaking() {
       if (!stakingContract || !stakingContract.address || !stakingContract.abi) {
         throw new Error('Staking contract not available.');
       }
+      
+      if (isPrivy) {
+        // Use seamless transaction for suppliers
+        toast.info('Processing your reward claim request...');
+        
+        const data = encodeFunctionData({
+          abi: stakingContract.abi,
+          functionName: 'claimRewards',
+        });
+        
+        const hash = await executeTransaction(
+          stakingContract.address,
+          data,
+          0n,
+          publicClient?.chain.id
+        );
+        
+        toast.success('Rewards claimed successfully!');
+        return hash;
+      }
+      
       if (!walletClient || !address || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
@@ -496,7 +555,7 @@ export function useStaking() {
     } finally {
       setIsLoading(false);
     }
-  }, [stakingContract, walletClient, publicClient, address]);
+  }, [stakingContract, walletClient, publicClient, address, isPrivy, executeTransaction]);
 
   return {
     isLoading: isLoading || isBalanceLoading,

@@ -3,9 +3,13 @@ import { useAccount, useBalance, useReadContract } from 'wagmi';
 import { type Address } from 'viem';
 import { contracts } from '@/lib/wagmi/config';
 import { formatAmount } from '@/lib/utils/contracts';
+import { useWallets } from '@privy-io/react-auth';
 
 export function useTokenBalance() {
-  const { address } = useAccount();
+  const { wallets } = useWallets();
+  // Prefer embedded Privy wallet for supplier flows
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = privyWallet?.address;
   const [balances, setBalances] = useState<{
     metrik: string;
     usdc: string;
@@ -38,7 +42,7 @@ export function useTokenBalance() {
     },
   });
 
-  // Read native token (AVAX) balance
+  // Read native token (CBTC) balance
   const { data: ethBalance } = useBalance({
     address,
   });
