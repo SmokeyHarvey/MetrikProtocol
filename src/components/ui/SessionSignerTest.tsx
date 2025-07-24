@@ -71,10 +71,13 @@ export function SessionSignerTest() {
         amountInWei
       );
       
+      // Convert duration from DAYS to SECONDS (contract expects seconds)
+      const durationInSeconds = BigInt(parseInt(duration) * 24 * 60 * 60);
+      
       // Encode staking transaction
       const stakeData = encodeStake(
         amountInWei,
-        BigInt(duration)
+        durationInSeconds
       );
       
       // Execute approval transaction
@@ -340,6 +343,42 @@ export function SessionSignerTest() {
               <li><a href="https://docs.privy.io/wallets/using-wallets/session-signers/use-session-signers" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Privy Session Signers Guide</a></li>
               <li><a href="https://docs.privy.io/recipes/wallets/session-signer-use-cases/server-side-access" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Server-side Access Guide</a></li>
             </ul>
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">🧪 Test Fallback Mechanism</h3>
+          <p className="text-blue-700 mb-4">
+            Since session signers aren't configured, the app will use regular wallet transactions as fallback.
+            Try staking some tokens to test this functionality.
+          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-blue-600">
+              <strong>Expected behavior:</strong>
+            </p>
+            <ul className="list-disc list-inside text-sm text-blue-600 space-y-1">
+              <li>Session signer will fail with "Invalid Privy app ID"</li>
+              <li>App will automatically fallback to regular wallet transaction</li>
+              <li>You'll see "Using regular wallet transaction..." message</li>
+              <li>Wallet will prompt for transaction approval</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h3 className="text-lg font-semibold text-green-900 mb-2">✅ To Enable Session Signers</h3>
+          <div className="space-y-2">
+            <p className="text-sm text-green-700">
+              <strong>Follow these steps in your Privy Dashboard:</strong>
+            </p>
+            <ol className="list-decimal list-inside text-sm text-green-700 space-y-1">
+              <li>Go to <a href="https://dashboard.privy.io" target="_blank" rel="noopener noreferrer" className="underline font-medium">dashboard.privy.io</a></li>
+              <li>Select your app: <code className="bg-green-100 px-1 rounded">cmd45wlum039ql20myccjcwpv</code></li>
+              <li>Navigate to <strong>Configuration → Session Signers</strong></li>
+              <li>Enable session signers for your app</li>
+              <li>Configure any required policies</li>
+              <li>Test again after configuration</li>
+            </ol>
           </div>
         </div>
       </CardContent>

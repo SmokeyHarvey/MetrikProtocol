@@ -37,9 +37,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className={inter.className}>
         <PrivyProvider
-          appId="cmd45wlum039ql20myccjcwpv"
+          appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmd45wlum039ql20myccjcwpv"}
           config={{
-            loginMethods: ['email'],
+            loginMethods: ['email', 'wallet'],
             appearance: {
               theme: 'light',
               accentColor: '#0070f3',
@@ -49,7 +49,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
             defaultChain: citreaTestnet,
             embeddedWallets: {
               createOnLogin: 'users-without-wallets',
+              showWalletUIs: true, // Enable wallet confirmation modals
             },
+            // Use embedded wallets instead of session signers for now
+            // sessionSigners: {
+            //   enabled: true,
+            // },
           }}
         >
         <WagmiProvider>

@@ -10,31 +10,48 @@ async function initializePrivyServer() {
     PrivyClient = PC;
     console.log('Successfully imported PrivyClient');
     
+    // Better environment variable debugging
+    const appSecret = process.env.PRIVY_APP_SECRET;
+    const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    
     console.log('Environment check:', {
-      hasAppSecret: !!process.env.PRIVY_APP_SECRET,
-      appSecretLength: process.env.PRIVY_APP_SECRET?.length || 0,
-      hasAppId: !!process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-      appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+      hasAppSecret: !!appSecret,
+      appSecretLength: appSecret?.length || 0,
+      appSecretPrefix: appSecret?.substring(0, 10) + '...',
+      hasAppId: !!appId,
+      appId: appId,
+      nodeEnv: process.env.NODE_ENV,
     });
     
-    if (!process.env.PRIVY_APP_SECRET) {
-      console.warn('PRIVY_APP_SECRET not configured. Session signers will not work.');
-      console.warn('Add PRIVY_APP_SECRET to your environment variables.');
-      return false;
-    } else {
-      console.log('Creating PrivyClient with app ID:', process.env.NEXT_PUBLIC_PRIVY_APP_ID);
-      privyServer = new PrivyClient({
-        appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
-        appSecret: process.env.PRIVY_APP_SECRET!,
-      });
-      console.log('Session signers initialized successfully');
-      return true;
+    if (!appSecret) {
+      console.error('❌ PRIVY_APP_SECRET not found in environment variables');
+      console.error('Available env vars:', Object.keys(process.env).filter(key => key.includes('PRIVY')));
+      throw new Error('PRIVY_APP_SECRET not configured. Session signers will not work.');
     }
+
+    if (!appId) {
+      console.error('❌ NEXT_PUBLIC_PRIVY_APP_ID not found in environment variables');
+      throw new Error('NEXT_PUBLIC_PRIVY_APP_ID not configured. Session signers will not work.');
+    }
+    
+    console.log('✅ Creating PrivyClient with app ID:', appId);
+    privyServer = new PrivyClient({
+      appId: appId,
+      appSecret: appSecret,
+    });
+    console.log('✅ Session signers initialized successfully');
+    return true;
   } catch (error) {
-    console.error('Error initializing Privy server:', error);
-    console.warn('@privy-io/server-auth not installed. Session signers will not work.');
-    console.warn('To enable session signers, run: npm install @privy-io/server-auth');
-    console.warn('Then configure PRIVY_APP_SECRET in your environment variables.');
+    console.error('❌ Error initializing Privy server:', error);
+    
+    if (error instanceof Error && error.message.includes('Cannot resolve module')) {
+      console.warn('📦 @privy-io/server-auth not installed. Session signers will not work.');
+      console.warn('To enable session signers, run: npm install @privy-io/server-auth');
+    }
+    
+    console.warn('Environment variables needed:');
+    console.warn('- PRIVY_APP_SECRET (from Privy Dashboard)');
+    console.warn('- NEXT_PUBLIC_PRIVY_APP_ID (your app ID)');
     return false;
   }
 }
