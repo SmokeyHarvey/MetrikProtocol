@@ -307,9 +307,8 @@ export function useBorrow(addressOverride?: string) {
         totalInterest,
         totalRepaid: repaidLoans.reduce((sum, loan) => sum + Number(loan.amount), 0)
       });
-      // Fetch borrowing capacity and safe lending amount
-      const capacity = await getBorrowingCapacity();
-      setBorrowingCapacity(capacity);
+      // Note: Borrowing capacity is now calculated in the component using getMaxBorrowAmount for each invoice
+      // This provides more accurate per-invoice capacity instead of a general LTV percentage
       // The safeLendingAmount is now fetched on mount
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch loans');
@@ -332,7 +331,8 @@ export function useBorrow(addressOverride?: string) {
         args: [BigInt(tokenId)],
       }) as bigint;
 
-      return formatAmount(maxBorrow);
+      // USDC has 6 decimals, not 18
+      return formatAmount(maxBorrow, 6);
     } catch (err) {
       console.error('Error getting max borrow amount:', err);
       return '0';
@@ -413,13 +413,15 @@ export function useBorrow(addressOverride?: string) {
       fetchUserLoans();
       
       // Set up polling every 30 seconds
-      const interval = setInterval(fetchUserLoans, 30000);
+      const interval = setInterval(() => {
+        fetchUserLoans();
+      }, 30000);
       
       return () => clearInterval(interval);
     } else {
       setError('Effect: missing address, not polling.');
     }
-  }, [address, fetchUserLoans]);
+  }, [address, fetchUserLoans, getBorrowingCapacity]);
 
   return {
     userLoans, // all loans (history)

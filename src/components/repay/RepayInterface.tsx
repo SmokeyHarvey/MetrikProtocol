@@ -34,7 +34,8 @@ export function RepayInterface() {
   });
   const [isRepaying, setIsRepaying] = useState(false);
 
-  const handleRepay = async (e: React.FormEvent) => {
+  // One-click repay handler (backend already supports batch transactions!)
+  const handleOneClickRepay = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!repayForm.invoiceId) {
@@ -44,6 +45,12 @@ export function RepayInterface() {
 
     try {
       setIsRepaying(true);
+      
+      // Show user what's happening
+      toast.info('🚀 Executing seamless repay: USDC approval + repayment in background!', { autoClose: 3000 });
+      
+      console.log('🚀 Initiating one-click repay for invoice:', repayForm.invoiceId);
+      
       await repay(repayForm.invoiceId);
       
       // Reset form
@@ -51,10 +58,10 @@ export function RepayInterface() {
         invoiceId: '',
       });
       
-      toast.success('Repayment successful!');
+      toast.success('🎉 SEAMLESS REPAYMENT COMPLETED! Zero wallet prompts required!', { autoClose: 8000 });
     } catch (err) {
-      console.error('Error repaying:', err);
-      toast.error('Failed to repay loan');
+      console.error('❌ Seamless repayment failed:', err);
+      toast.error('Seamless repayment failed. Please try again.');
     } finally {
       setIsRepaying(false);
     }
@@ -63,11 +70,16 @@ export function RepayInterface() {
   const handleQuickRepay = async (invoiceId: string) => {
     try {
       setIsRepaying(true);
+      
+      // Show seamless execution message
+      toast.info('⚡ Processing seamless repayment...', { autoClose: 3000 });
+      
       await repay(invoiceId);
-      toast.success('Repayment successful!');
+      
+      toast.success(`🎉 SEAMLESS REPAYMENT COMPLETED! Invoice ${invoiceId} paid with zero prompts!`, { autoClose: 8000 });
     } catch (err) {
-      console.error('Error repaying:', err);
-      toast.error('Failed to repay loan');
+      console.error('❌ Quick repay failed:', err);
+      toast.error('Seamless repayment failed. Please try again.');
     } finally {
       setIsRepaying(false);
     }
@@ -249,13 +261,54 @@ export function RepayInterface() {
         <TabsContent value="repay" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Repay Loan</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span>Repay Loan</span>
+                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full font-normal">
+                  ⚡ Zero-Click Available
+                </span>
+              </CardTitle>
               <CardDescription>
-                Repay your outstanding loans with USDC
+                Seamlessly repay your outstanding loans with USDC (automatic approval + repayment)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleRepay} className="space-y-4">
+              {/* Seamless Repay Benefits Info */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mb-4">
+                <h4 className="text-sm font-semibold text-green-900 mb-2">⚡ Why Use Seamless Repayment?</h4>
+                <ul className="text-xs text-green-800 space-y-1">
+                  <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
+                  <li>• <strong>Instant:</strong> Backend handles USDC approval automatically</li>
+                  <li>• <strong>Seamless:</strong> Approval + repayment in complete background</li>
+                  <li>• <strong>Perfect UX:</strong> Users don't need to understand blockchain complexity</li>
+                </ul>
+              </div>
+              
+              {/* Seamless Execution Progress */}
+              {isRepaying && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-amber-900">⚡ Seamless Execution in Progress</h4>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Running USDC approval + repayment in background... No action needed from you!
+                      </p>
+                      <div className="mt-3 space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-amber-700">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>Step 1: USDC approval transaction submitted</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-amber-700">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                          <span>Step 2: Processing repayment transaction</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleOneClickRepay} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="invoiceId">Invoice ID</Label>
                   <Input
@@ -267,16 +320,16 @@ export function RepayInterface() {
                     disabled={isRepaying}
                   />
                 </div>
-                <Button type="submit" disabled={isRepaying} className="w-full font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <Button type="submit" disabled={isRepaying} className="w-full font-bold rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                   {isRepaying ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing Repayment...
+                      ⚡ Processing Seamlessly...
                     </>
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-4 w-4" />
-                      Repay Loan
+                      ⚡ SEAMLESS REPAY (Zero-Click)
                     </>
                   )}
                 </Button>
@@ -343,12 +396,12 @@ export function RepayInterface() {
                             size="sm"
                             onClick={() => handleQuickRepay(loan.invoiceId)}
                             disabled={isRepaying || loan.isRepaid}
-                            className="font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-1 px-3 shadow focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="font-bold rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-1 px-3 shadow focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isRepaying && !loan.isRepaid ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : null}
-                            {loan.isRepaid ? 'Repaid' : 'Repay'}
+                            {loan.isRepaid ? '✅ Repaid' : '⚡ Seamless Repay'}
                           </Button>
                         </TableCell>
                       </TableRow>

@@ -29,7 +29,9 @@ export function useOneClickStaking(wallets?: any[]) {
     setIsExecuting(true);
     
     try {
-      const userAddress = wallets[0].address;
+      // Use the specific privy wallet address, not just the first wallet
+      const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+      const userAddress = privyWallet?.address || wallets[0]?.address;
       
       // Step 1: Prepare batch transaction on backend
       console.log('🔄 Preparing one-click stake transaction...');

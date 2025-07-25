@@ -16,6 +16,7 @@ import { useWallets } from '@privy-io/react-auth';
 import { usePublicClient, useWalletClient } from 'wagmi';
 import { encodeFunctionData } from 'viem';
 import { useSendTransaction } from '@privy-io/react-auth';
+import { useOneClickBorrow } from '@/hooks/useOneClickBorrow';
 
 // Debug: confirm component is rendering
 console.log('BorrowInterface rendered');
@@ -38,6 +39,12 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { sendTransaction } = useSendTransaction();
+  
+  // One-click borrowing hook
+  const { executeOneClickBorrow, isExecuting } = useOneClickBorrow(wallets);
+  
+  // Keep legacy state for traditional function compatibility
+  const [isBorrowing, setIsBorrowing] = useState(false);
   const {
     userLoans,
     borrowStats,
@@ -59,7 +66,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
     invoiceId: '',
     amount: '',
   });
-  const [isBorrowing, setIsBorrowing] = useState(false);
+
   const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [invoicesError, setInvoicesError] = useState<string | null>(null);
   // Add state to track selected invoice for detail card
@@ -74,20 +81,48 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
     [userLoans]
   );
 
-  const totalBorrowingCapacity = React.useMemo(() => {
-    if (!invoices || !borrowingCapacity) return 0;
-    
-    const capacity = invoices
-      .filter(inv => inv.isVerified && !activeLoanInvoiceIds.includes(String(inv.id)))
-      .reduce((total, inv) => {
-        const creditAmount = BigInt(inv.creditAmount || 0);
-        const ltv = BigInt(borrowingCapacity);
-        const maxBorrowForItem = (creditAmount * ltv) / 10000n;
-        return total + maxBorrowForItem;
-      }, 0n);
+  // State to store max borrow amounts fetched from contract
+  const [maxBorrowAmounts, setMaxBorrowAmounts] = React.useState<Record<string, string>>({});
 
-    return Number(capacity / 10n**18n); // Convert from 18 decimals to float
-  }, [invoices, borrowingCapacity, activeLoanInvoiceIds]);
+  // Fetch max borrow amounts from contract directly
+  const fetchMaxBorrowAmounts = React.useCallback(async () => {
+    if (!invoices || !getMaxBorrowAmount) return;
+    
+    console.log('🔍 Fetching max borrow amounts from contract for invoices:', invoices.length);
+    
+    const amounts: Record<string, string> = {};
+    
+    for (const invoice of invoices) {
+      if (invoice.isVerified && !activeLoanInvoiceIds.includes(String(invoice.id))) {
+        try {
+          const maxAmount = await getMaxBorrowAmount(String(invoice.id));
+          amounts[String(invoice.id)] = maxAmount;
+          
+          console.log('📊 Contract max borrow amount:', {
+            invoiceId: invoice.invoiceId,
+            tokenId: invoice.id,
+            maxBorrowAmount: maxAmount
+          });
+        } catch (error) {
+          console.error('❌ Error fetching max borrow amount for invoice', invoice.id, error);
+          amounts[String(invoice.id)] = '0';
+        }
+      }
+    }
+    
+    setMaxBorrowAmounts(amounts);
+    console.log('✅ All max borrow amounts fetched:', amounts);
+  }, [invoices, getMaxBorrowAmount, activeLoanInvoiceIds]);
+
+  // Calculate total borrowing capacity from contract data
+  const totalBorrowingCapacity = React.useMemo(() => {
+    const total = Object.values(maxBorrowAmounts).reduce((sum, amount) => {
+      return sum + Number(amount || 0);
+    }, 0);
+    
+    console.log('✅ Total borrowing capacity from contract:', total, 'USDC');
+    return total;
+  }, [maxBorrowAmounts]);
 
   const activeBorrowed = React.useMemo(() =>
     userLoans
@@ -113,19 +148,46 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
     } else {
       setInvoicesLoading(false);
       setInvoicesError(null);
+      
+      // Debug: Log invoice data to understand format
+      console.log('📋 Invoices data loaded:', {
+        count: invoices.length,
+        sampleInvoice: invoices[0],
+        allInvoices: invoices.map(inv => ({
+          id: inv.id,
+          invoiceId: inv.invoiceId,
+          creditAmount: inv.creditAmount,
+          isVerified: inv.isVerified,
+          supplier: inv.supplier
+        }))
+      });
     }
     // Defensive: if invoicesError is set, stop borrowing
-    if (invoicesError) setIsBorrowing(false);
+    if (invoicesError) {
+      // Error occurred, but we handle it through the executeOneClickBorrow function
+    }
   }, [invoices, invoicesError]);
+
+  // Fetch max borrow amounts from contract when invoices change
+  React.useEffect(() => {
+    if (invoices && invoices.length > 0) {
+      fetchMaxBorrowAmounts();
+    }
+  }, [invoices, fetchMaxBorrowAmounts]);
 
   // Fetch max borrow amount when invoice detail card is opened
   React.useEffect(() => {
     if (selectedInvoiceId) {
-      getMaxBorrowAmount(selectedInvoiceId).then(val => setSelectedMaxBorrow(val));
+      // Use cached amount if available, otherwise fetch from contract
+      if (maxBorrowAmounts[selectedInvoiceId]) {
+        setSelectedMaxBorrow(maxBorrowAmounts[selectedInvoiceId]);
+      } else {
+        getMaxBorrowAmount(selectedInvoiceId).then(val => setSelectedMaxBorrow(val));
+      }
     } else {
       setSelectedMaxBorrow('');
     }
-  }, [selectedInvoiceId, getMaxBorrowAmount]);
+  }, [selectedInvoiceId, getMaxBorrowAmount, maxBorrowAmounts]);
 
   const handleBorrow = async (e: React.FormEvent) => {
     console.log('handleBorrow called');
@@ -274,6 +336,68 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
     }
   };
 
+  // One-click borrow handler
+  const handleOneClickBorrow = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!borrowForm.invoiceId || !borrowForm.amount) {
+      toast.error('Please enter invoice ID and amount');
+      return;
+    }
+
+    // Validate invoice ownership BEFORE executing
+    const invoice = invoices.find(inv => inv.invoiceId === borrowForm.invoiceId || String(inv.id) === borrowForm.invoiceId);
+    if (!invoice) {
+      toast.error('Invoice not found. Please check the invoice ID.');
+      return;
+    }
+    
+    // Check if user is the supplier (owner) of this invoice
+    if (invoice.supplier && address && invoice.supplier.toLowerCase() !== address.toLowerCase()) {
+      toast.error(
+        `❌ Invoice Ownership Error!
+        You can only borrow against your own invoices.
+        Invoice supplier: ${invoice.supplier}
+        Your address: ${address}
+        ⚠️ Switch to the correct wallet or select your own invoice.`,
+        { autoClose: 12000 }
+      );
+      return;
+    }
+
+    try {
+      console.log('🚀 Initiating one-click borrow:', {
+        invoiceId: borrowForm.invoiceId,
+        amount: borrowForm.amount,
+        userAddress: address,
+        invoiceSupplier: invoice.supplier,
+        ownershipValidated: true
+      });
+      
+      const result = await executeOneClickBorrow(borrowForm.invoiceId, borrowForm.amount);
+      
+      if (result?.success) {
+        console.log('✅ One-click borrowing successful!', result);
+        
+        // Clear form on success
+        setBorrowForm({ invoiceId: '', amount: '' });
+        
+        // Show success message with transaction details
+        toast.success(`🎉 One-click borrowing completed successfully!`, {
+          autoClose: 8000,
+          onClick: () => {
+            if (result.borrowHash) {
+              window.open(`https://sepolia.etherscan.io/tx/${result.borrowHash}`, '_blank');
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ One-click borrowing error:', error);
+      toast.error('One-click borrowing failed. Please try again.');
+    }
+  };
+
   // Debug: Call getUserLoansRaw directly
   const handleDebugGetUserLoans = async () => {
     if (typeof window !== 'undefined' && getUserLoansRaw) {
@@ -363,6 +487,25 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
 
   // Add handler for table borrow button
   const handleTableBorrowClick = (invoiceId: string) => {
+    // Validate invoice ownership BEFORE allowing selection
+    const invoice = invoices.find(inv => String(inv.id) === invoiceId);
+    if (!invoice) {
+      toast.error('Invoice not found.');
+      return;
+    }
+    
+    // Check if user is the supplier (owner) of this invoice
+    if (invoice.supplier && address && invoice.supplier.toLowerCase() !== address.toLowerCase()) {
+      toast.error(
+        `❌ You can only borrow against your own invoices!
+        This invoice belongs to: ${invoice.supplier}
+        Your address: ${address}
+        ⚠️ Please select an invoice you own.`,
+        { autoClose: 10000 }
+      );
+      return;
+    }
+    
     setBorrowForm({ invoiceId, amount: '' });
     setSelectedInvoiceId(invoiceId);
   };
@@ -613,7 +756,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleBorrow} className="space-y-4">
+              <form onSubmit={handleOneClickBorrow} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="invoiceId">Invoice ID</Label>
@@ -622,7 +765,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                       value={borrowForm.invoiceId}
                       onChange={e => setBorrowForm(prev => ({ ...prev, invoiceId: e.target.value }))}
                       required
-                      disabled={isBorrowing || invoicesLoading || Boolean(invoicesError) || !invoices || invoices.length === 0}
+                      disabled={isExecuting || invoicesLoading || Boolean(invoicesError) || !invoices || invoices.length === 0}
                       className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     >
                       <option value="" disabled>Select an invoice</option>
@@ -645,12 +788,12 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                       value={borrowForm.amount}
                       onChange={(e) => setBorrowForm(prev => ({ ...prev, amount: e.target.value }))}
                       required
-                      disabled={isBorrowing}
+                      disabled={isExecuting}
                     />
                   </div>
                 </div>
-                <Button type="submit" disabled={isBorrowing} className="w-full font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isBorrowing ? (
+                <Button type="submit" disabled={isExecuting} className="w-full font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {isExecuting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Processing Borrow...
@@ -756,7 +899,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
               {invoices.filter(inv => inv.isVerified).map(inv => (
                 <TableRow key={inv.id}>
                   <TableCell>{inv.invoiceId}</TableCell>
-                  <TableCell>{inv.creditAmount != null ? (Number(inv.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 }) : inv.amount != null ? inv.amount : 'N/A'} USDC</TableCell>
+                  <TableCell>{inv.creditAmount != null ? (Number(inv.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : inv.amount != null ? inv.amount : 'N/A'} USDC</TableCell>
                   <TableCell>{inv.dueDate != null ? new Date(Number(inv.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                   <TableCell>
                     <Badge variant="default">Verified</Badge>
@@ -765,7 +908,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                     <Button
                       variant="default"
                       onClick={() => handleTableBorrowClick(String(inv.id))}
-                      disabled={isBorrowing}
+                      disabled={isExecuting}
                     >
                       Borrow
                     </Button>
@@ -788,7 +931,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
               <button
                 className="absolute top-4 left-4 text-gray-400 hover:text-indigo-600 focus:outline-none"
                 onClick={handleCloseInvoiceDetail}
-                disabled={isBorrowing}
+                disabled={isExecuting}
                 aria-label="Back"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
@@ -806,7 +949,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Credit Amount</div>
-                      <div className="text-sm">{invoice.creditAmount != null ? (Number(invoice.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 }) : invoice.amount != null ? invoice.amount : 'N/A'} USDC</div>
+                      <div className="text-sm">{invoice.creditAmount != null ? (Number(invoice.creditAmount)  / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : invoice.amount != null ? invoice.amount : 'N/A'} USDC</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Due Date</div>
@@ -832,8 +975,44 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                     </div>
                   </div>
                   
-                  {/* Borrow form */}
-                  <form onSubmit={handleBorrow} className="flex flex-col sm:flex-row gap-2 items-end mb-2">
+                  {/* Seamless Borrow form */}
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mb-4">
+                    <h4 className="text-sm font-semibold text-green-900 mb-2">⚡ Seamless Borrowing (Zero-Click Experience)</h4>
+                    <p className="text-xs text-green-700 mb-3">
+                      ✨ Completely automated! NFT approval + borrowing happens in background with ZERO wallet prompts!
+                    </p>
+                  </div>
+                  
+                  {/* Seamless Execution Progress */}
+                  {isExecuting && (
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-semibold text-amber-900">⚡ Seamless Execution in Progress</h4>
+                          <p className="text-xs text-amber-800 mt-1">
+                            Running NFT approval + borrowing in background... No action needed from you!
+                          </p>
+                          <div className="mt-3 space-y-1">
+                            <div className="flex items-center gap-2 text-xs text-amber-700">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span>Step 1: NFT approval transaction submitted</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-amber-700">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                              <span>Step 2: Waiting for blockchain confirmation (~8 seconds)</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-amber-600">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                              <span>Step 3: Borrowing transaction (pending)</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleOneClickBorrow} className="flex flex-col sm:flex-row gap-2 items-end mb-2">
                     <input
                       type="number"
                       className="block w-full max-w-xl rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-2 py-2 text-black"
@@ -841,14 +1020,14 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                       min="0"
                       value={borrowForm.amount}
                       onChange={e => setBorrowForm(prev => ({ ...prev, amount: e.target.value }))}
-                      disabled={isBorrowing || isLoanActive}
+                      disabled={isExecuting || isLoanActive}
                     />
                     <Button
                       type="submit"
-                      disabled={isBorrowing || !borrowForm.amount || isLoanActive}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                      disabled={isExecuting || !borrowForm.amount || isLoanActive}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50"
                     >
-                      {isBorrowing ? 'Processing...' : (isLoanActive ? 'Loan Active' : 'Borrow')}
+                      {isExecuting ? '⚡ Processing Seamlessly...' : (isLoanActive ? 'Loan Active' : `⚡ SEAMLESS BORROW ${borrowForm.amount ? `${borrowForm.amount} USDC` : ''} (Zero-Click)`)}
                     </Button>
                   </form>
                   {isLoanActive && <p className="text-xs text-center text-yellow-600 mt-2">This invoice has an active loan and cannot be borrowed against again.</p>}

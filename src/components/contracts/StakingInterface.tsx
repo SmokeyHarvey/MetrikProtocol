@@ -8,9 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useStaking } from '@/hooks/useStaking';
-import { useSessionSigner } from '@/hooks/useSessionSigner';
 import { useOneClickStaking } from '@/hooks/useOneClickStaking';
-import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
 import { toast } from 'react-toastify';
 
 export function StakingInterface() {
@@ -38,15 +36,11 @@ export function StakingInterface() {
     animatedMetrikBalance,
   } = useStaking(address);
   
-  // Session signer for seamless transactions
-  const { executeSeamlessTransaction, encodeApproval, encodeStake } = useSessionSigner(wallets);
-  
   // One-click staking hook
   const { executeOneClickStake, isExecuting } = useOneClickStaking(wallets);
   
   const [amount, setAmount] = useState('');
   const [duration, setDuration] = useState('45');
-  const [isStaking, setIsStaking] = useState(false);
   const [isUnstaking, setIsUnstaking] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
 
@@ -104,62 +98,6 @@ export function StakingInterface() {
       address
     });
   }, [wallets, privyWallet, address]);
-
-  const handleStake = async () => {
-    if (!amount || !duration) return;
-    
-    // Ensure wallet exists before staking
-    if (!privyWallet || !address) {
-      console.log('⚠️ No wallet available');
-      console.log('📊 Current wallet state:', {
-        privyWallet: !!privyWallet,
-        address,
-        walletsLength: wallets.length,
-        wallets: wallets.map(w => ({ address: w.address, type: w.walletClientType }))
-      });
-      
-      toast.error('Please ensure your wallet is connected');
-      return;
-    }
-    
-    try {
-      setIsStaking(true);
-      
-      // Use session signer for seamless staking
-      const stakingContractAddress = CONTRACT_ADDRESSES.STAKING;
-      const metrikTokenAddress = CONTRACT_ADDRESSES.METRIK_TOKEN;
-      
-      // Convert amount to BigInt properly
-      const amountInWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
-      
-      // Convert duration from DAYS to SECONDS (contract expects seconds)
-      const durationInSeconds = BigInt(parseInt(duration) * 24 * 60 * 60);
-      
-      // Encode approval transaction
-      const approvalData = encodeApproval(
-        metrikTokenAddress,
-        stakingContractAddress,
-        amountInWei
-      );
-      
-      // Encode staking transaction
-      const stakeData = encodeStake(
-        amountInWei,
-        durationInSeconds
-      );
-      
-      // Execute both transactions seamlessly
-      await executeSeamlessTransaction(stakingContractAddress, approvalData);
-      await executeSeamlessTransaction(stakingContractAddress, stakeData);
-      
-      setAmount('');
-      setDuration('45');
-    } catch (err) {
-      console.error('Staking error:', err);
-    } finally {
-      setIsStaking(false);
-    }
-  };
 
   // One-click staking handler
   const handleOneClickStake = async () => {
@@ -394,7 +332,7 @@ export function StakingInterface() {
                 placeholder="Enter amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                disabled={isStaking || isExecuting}
+                                       disabled={isExecuting}
               />
               {amount && parseFloat(amount) > parseFloat(String(animatedMetrikBalance)) && (
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
@@ -415,7 +353,7 @@ export function StakingInterface() {
                 placeholder="45"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
-                disabled={isStaking}
+                disabled={isExecuting}
               />
             </div>
             
@@ -452,41 +390,7 @@ export function StakingInterface() {
                 </Button>
               </div>
 
-              {/* Advanced/Traditional Method */}
-              <details className="group">
-                <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 select-none">
-                  ⚙️ Advanced: Manual Two-Step Staking (Old Method)
-                </summary>
-                <div className="mt-3 p-3 bg-gray-50 rounded-lg border">
-                  <p className="text-xs text-gray-600 mb-3">
-                    ⚠️ Traditional method with manual approval and staking transactions (requires wallet confirmations)
-                  </p>
-                  <Button
-                    onClick={handleStake}
-                    disabled={
-                      isStaking || 
-                      isCreatingWallet || 
-                      !amount || 
-                      !duration || 
-                      !authenticated || 
-                      (!privyWallet && !isCreatingWallet)
-                    }
-                    variant="outline"
-                    className="w-full"
-                  >
-                    {isCreatingWallet 
-                      ? 'Creating Wallet...' 
-                      : isStaking 
-                        ? 'Processing Traditional Stake...' 
-                        : !authenticated 
-                          ? 'Please Login First'
-                          : !privyWallet 
-                            ? 'Wallet Required'
-                            : 'Traditional Stake (2 Steps)'
-                    }
-                  </Button>
-                </div>
-              </details>
+
             </div>
           </div>
         </CardContent>

@@ -2,7 +2,6 @@
 
 import { StakingInterface } from '@/components/contracts/StakingInterface';
 import { SupplierStakingHistory } from '@/components/dashboard/SupplierStakingHistory';
-import { SessionSignerTest } from '@/components/ui/SessionSignerTest';
 import { useState, useEffect } from 'react';
 import * as Privy from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
@@ -134,7 +133,6 @@ export default function StakingPage() {
       {address && <GrantMinterRoleButton address={address} />}
       <StakingInterface />
       <SupplierStakingHistory />
-      <SessionSignerTest />
       <div className="mt-8 border-t pt-6">
         <h2 className="text-lg font-semibold mb-2">Faucet: Mint Metrik</h2>
         <div className="flex flex-col sm:flex-row gap-4 items-center">

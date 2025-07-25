@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
+import { useOneClickInvoice } from '@/hooks/useOneClickInvoice';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,9 @@ export function InvoiceInterface() {
   const { wallets } = useWallets();
   const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
   const address = privyWallet?.address;
+  
+  // One-click invoice creation hook
+  const { executeOneClickInvoiceCreation, isExecuting } = useOneClickInvoice(wallets);
   const { 
     invoices, 
     isLoading, 
@@ -61,7 +65,8 @@ export function InvoiceInterface() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const handleCreateInvoice = async (e: React.FormEvent) => {
+  // One-click invoice creation handler
+  const handleOneClickCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!newInvoice.supplier || !newInvoice.uniqueId || !newInvoice.amount || !newInvoice.dueDate) {
@@ -70,30 +75,47 @@ export function InvoiceInterface() {
     }
 
     try {
-      setIsCreating(true);
-      await createInvoice(
-        newInvoice.supplier as `0x${string}`,
-        newInvoice.uniqueId,
-        newInvoice.amount,
-        new Date(newInvoice.dueDate),
-        newInvoice.metadata || 'ipfs://placeholder' // Use metadata if provided
-      );
-      
-      // Reset form
-      setNewInvoice({
-        supplier: address || '',
-        uniqueId: generateInvoiceId(address),
-        amount: '',
-        dueDate: '',
-        metadata: '',
+      console.log('🚀 Initiating one-click invoice creation:', {
+        supplier: newInvoice.supplier,
+        uniqueId: newInvoice.uniqueId,
+        amount: newInvoice.amount,
+        dueDate: newInvoice.dueDate,
+        metadata: newInvoice.metadata
       });
       
-      toast.success('Invoice NFT minted successfully!');
-    } catch (err) {
-      console.error('Error creating invoice:', err);
-      toast.error('Failed to create invoice');
-    } finally {
-      setIsCreating(false);
+      const result = await executeOneClickInvoiceCreation(
+        newInvoice.supplier,
+        newInvoice.uniqueId,
+        newInvoice.amount,
+        newInvoice.dueDate,
+        newInvoice.metadata || undefined
+      );
+      
+      if (result?.success) {
+        console.log('✅ One-click invoice creation successful!', result);
+        
+        // Reset form
+        setNewInvoice({
+          supplier: address || '',
+          uniqueId: generateInvoiceId(address),
+          amount: '',
+          dueDate: '',
+          metadata: '',
+        });
+        
+        // Show success message with transaction details
+        toast.success(`🎉 One-click invoice creation completed successfully!`, {
+          autoClose: 8000,
+          onClick: () => {
+            if (result.mintHash) {
+              window.open(`https://sepolia.etherscan.io/tx/${result.mintHash}`, '_blank');
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ One-click invoice creation error:', error);
+      toast.error('One-click invoice creation failed. Please try again.');
     }
   };
 
@@ -169,7 +191,7 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                ${invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.creditAmount) / 1e18), 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'}
+                ${invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.creditAmount) / 1e6), 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
@@ -233,13 +255,54 @@ export function InvoiceInterface() {
         <TabsContent value="create" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Create New Invoice NFT</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span>Create New Invoice NFT</span>
+                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full font-normal">
+                  ⚡ Zero-Click Available
+                </span>
+              </CardTitle>
               <CardDescription>
-                Mint a new invoice NFT with metadata
+                Seamlessly mint invoice NFTs with IPFS metadata integration (zero wallet prompts)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleCreateInvoice} className="space-y-4">
+              {/* Seamless Invoice Benefits Info */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mb-4">
+                <h4 className="text-sm font-semibold text-green-900 mb-2">⚡ Why Use Seamless Invoice Creation?</h4>
+                <ul className="text-xs text-green-800 space-y-1">
+                  <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
+                  <li>• <strong>IPFS Integration:</strong> Automatic metadata upload and linking</li>
+                  <li>• <strong>Instant NFT:</strong> Creates invoice NFT in complete background</li>
+                  <li>• <strong>Perfect UX:</strong> Users don't need blockchain knowledge</li>
+                </ul>
+              </div>
+              
+              {/* Seamless Execution Progress */}
+              {isExecuting && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-amber-900">⚡ Seamless Execution in Progress</h4>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Creating invoice NFT in background... No action needed from you!
+                      </p>
+                      <div className="mt-3 space-y-1">
+                        <div className="flex items-center gap-2 text-xs text-amber-700">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>Step 1: Processing invoice data</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-amber-700">
+                          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                          <span>Step 2: Minting Invoice NFT</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleOneClickCreateInvoice} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="supplier">Supplier Address</Label>
@@ -340,18 +403,18 @@ export function InvoiceInterface() {
 
                 <Button 
                   type="submit" 
-                  disabled={isCreating}
-                  className="w-full"
+                  disabled={isExecuting}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
                 >
-                  {isCreating ? (
+                  {isExecuting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Invoice NFT...
+                      ⚡ Creating Seamlessly...
                     </>
                   ) : (
                     <>
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Invoice NFT
+                      ⚡ SEAMLESS CREATE INVOICE (Zero-Click)
                     </>
                   )}
                 </Button>
@@ -398,7 +461,7 @@ export function InvoiceInterface() {
                         <TableRow key={invoice.id}>
                           <TableCell>{invoice.invoiceId}</TableCell>
                           <TableCell>{invoice.supplier}</TableCell>
-                          <TableCell>{(Number(invoice.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
+                          <TableCell>{(Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
                           <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
@@ -460,7 +523,7 @@ export function InvoiceInterface() {
                         <TableRow key={invoice.id}>
                           <TableCell>{invoice.invoiceId}</TableCell>
                           <TableCell>{invoice.supplier}</TableCell>
-                          <TableCell>{(Number(invoice.creditAmount) / 1e18).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
+                          <TableCell>{(Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
                           <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
