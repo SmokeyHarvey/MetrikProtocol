@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useAccount, useBalance, useReadContract, usePublicClient } from 'wagmi';
+import { useBalance, useReadContract, usePublicClient } from 'wagmi';
 import { type Address } from 'viem';
 import { contracts } from '@/lib/wagmi/config';
 import { formatAmount } from '@/lib/utils/contracts';
@@ -67,7 +67,7 @@ export function useTokenBalance() {
 
   // Read native token (CBTC) balance
   const { data: ethBalance } = useBalance({
-    address,
+    address: address as `0x${string}` | undefined,
   });
 
   // Update balances when data changes

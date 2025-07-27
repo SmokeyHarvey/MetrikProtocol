@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useWallets, useCreateWallet, usePrivy } from '@privy-io/react-auth';
-import { ApprovalInfo } from '@/components/ui/ApprovalInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,7 @@ import { useStaking } from '@/hooks/useStaking';
 import { useOneClickStaking } from '@/hooks/useOneClickStaking';
 import { toast } from 'react-toastify';
 import { keccak256, toUtf8Bytes } from 'ethers';
-import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export function StakingInterface() {
   const { wallets } = useWallets();
@@ -27,7 +26,6 @@ export function StakingInterface() {
   const address = privyWallet?.address;
   
   const {
-    stake,
     unstake,
     getActiveStakes,
     currentTier,
@@ -35,7 +33,6 @@ export function StakingInterface() {
     isLoading,
     error,
     animatedStakedAmount,
-    animatedRewards,
     animatedMetrikBalance,
   } = useStaking(address);
   
@@ -500,7 +497,7 @@ export function StakingInterface() {
               <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
               <li>• <strong>Instant:</strong> Backend handles all approvals automatically</li>
               <li>• <strong>Seamless:</strong> Approval + staking in complete background</li>
-              <li>• <strong>Perfect UX:</strong> Users don't need to understand blockchain complexity</li>
+              <li>• <strong>Perfect UX:</strong> Users don&apos;t need to understand blockchain complexity</li>
             </ul>
           </div>
 
@@ -550,9 +547,9 @@ export function StakingInterface() {
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
                   ⚠️ Insufficient balance! You have {animatedMetrikBalance} METRIK available.
                   <br />
-                  <a href="/" className="text-red-800 underline font-medium">
+                  <Link href="/" className="text-red-800 underline font-medium">
                     → Go to Home page to claim more tokens
-                  </a>
+                  </Link>
                 </div>
               )}
             </div>

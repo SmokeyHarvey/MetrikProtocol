@@ -8,7 +8,7 @@ import { DollarSign, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
 export function OwnerPlatformFees() {
-  const { platformFees, isLoading, error, withdrawPlatformFees, refetch } = usePlatformFees();
+  const { platformFees, error, withdrawPlatformFees, refetch } = usePlatformFees();
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const handleWithdrawFees = async () => {
@@ -17,7 +17,7 @@ export function OwnerPlatformFees() {
       await withdrawPlatformFees();
       // Background refresh (optional, since hook may already do it)
       refetch();
-    } catch (err) {
+    } catch {
       // Error is handled in the hook
     } finally {
       setIsWithdrawing(false);

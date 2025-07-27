@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Loader2, DollarSign, CreditCard, Clock, AlertTriangle, CheckCircle, RefreshCw, TrendingUp } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Contract } from 'ethers';
-import { BrowserProvider, parseUnits } from 'ethers';
+import { parseUnits } from 'ethers';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
 import { useTokenBalance } from '@/hooks/useTokenBalance';
 import { useSendTransaction } from '@privy-io/react-auth';
@@ -35,7 +35,6 @@ export function RepayInterface() {
     usdcBalance,
     isLoading,
     error,
-    repay,
     animatedStats,
     animatedUsdcBalance,
     refetch,
@@ -91,7 +90,7 @@ export function RepayInterface() {
       // Refresh data
       await refetch();
       
-      setRepayTxHash(result?.repayHash || '');
+      setRepayTxHash(result || '');
     } catch (err) {
       console.error('❌ Seamless repayment failed:', err);
       toast.error('Seamless repayment failed. Please try again.');
@@ -112,7 +111,7 @@ export function RepayInterface() {
       // Refresh data
       await refetch();
       
-      setRepayTxHash(result?.repayHash || '');
+      setRepayTxHash(result || '');
     } catch (err) {
       console.error('❌ Quick repay failed:', err);
       toast.error('Seamless repayment failed. Please try again.');
@@ -379,7 +378,7 @@ export function RepayInterface() {
                   <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
                   <li>• <strong>Instant:</strong> Backend handles USDC approval automatically</li>
                   <li>• <strong>Seamless:</strong> Approval + repayment in complete background</li>
-                  <li>• <strong>Perfect UX:</strong> Users don't need to understand blockchain complexity</li>
+                  <li>• <strong>Perfect UX:</strong> Users don&apos;t need to understand blockchain complexity</li>
                 </ul>
               </div>
               
@@ -413,7 +412,7 @@ export function RepayInterface() {
                   <Label htmlFor="invoiceId">Select Loan to Repay</Label>
                   {outstandingLoans.length === 0 ? (
                     <div className="text-sm text-muted-foreground py-2">
-                      No outstanding loans found. You're all caught up!
+                      No outstanding loans found. You&apos;re all caught up!
                     </div>
                   ) : (
                     <select

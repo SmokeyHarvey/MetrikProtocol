@@ -73,7 +73,7 @@ export function useAnimatedValue(
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [targetValue, duration, easing]);
+  }, [targetValue, duration, easing, displayValue]);
 
   return displayValue;
 } 

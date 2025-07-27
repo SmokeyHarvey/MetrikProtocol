@@ -2,10 +2,8 @@ import { useState, useCallback } from 'react';
 import { usePublicClient, useAccount } from 'wagmi';
 import { useWallets, useSendTransaction } from '@privy-io/react-auth';
 import { toast } from 'react-toastify';
-import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
-import { lendingPoolAbi } from '@/lib/contracts/abis/LendingPool.json';
 
-export function useOneClickRepay(wallets?: any[]) {
+export function useOneClickRepay() {
   const publicClient = usePublicClient();
   const { address: wagmiAddress } = useAccount();
   const { wallets: privyWallets } = useWallets();
@@ -90,8 +88,7 @@ export function useOneClickRepay(wallets?: any[]) {
       console.log('🎉 All repay transactions completed successfully!');
       
       // Show success message with benefits
-      toast.success('🎉 Seamless Repayment Completed!', {
-        description: 'Zero wallet prompts required. Invoice NFT burned. Loan settled.',
+      toast.success('🎉 Seamless Repayment Completed! Zero wallet prompts required. Invoice NFT burned. Loan settled.', {
         autoClose: 8000,
       });
 

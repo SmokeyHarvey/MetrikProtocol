@@ -438,11 +438,13 @@ export function useStaking(addressOverride?: string) {
         throw new Error(`Error fetching METRIK balance: ${balanceError?.message}`);
       }
 
+      // Define variables that will be used in both paths
+      const parsedAmount = parseAmount(amount);
+      const safeDuration = BigInt(Math.max(0, Math.floor(duration || 0)));
+      const durationInSeconds = safeDuration * BigInt(24 * 60 * 60);
+
       if (isPrivy) {
         // Use seamless transactions for suppliers with better messaging
-        const parsedAmount = parseAmount(amount);
-        const safeDuration = BigInt(Math.max(0, Math.floor(duration || 0)));
-        const durationInSeconds = safeDuration * BigInt(24 * 60 * 60);
         
         toast.info('Setting up your stake... This may require one approval for future transactions.');
         
@@ -482,7 +484,7 @@ export function useStaking(addressOverride?: string) {
 
       try {
         const { request } = await publicClient!.simulateContract({
-          account: address,
+          account: address as `0x${string}`,
           address: metrikContract.address,
           abi: metrikContract.abi,
           functionName: 'approve',
@@ -517,7 +519,7 @@ export function useStaking(addressOverride?: string) {
 
       try {
         const { request } = await publicClient!.simulateContract({
-          account: address,
+          account: address as `0x${string}`,
           address: stakingContract.address,
           abi: stakingContract.abi,
           functionName: 'stake',
@@ -598,7 +600,7 @@ export function useStaking(addressOverride?: string) {
         throw new Error('Wallet client, address, or public client not available.');
       }
       const { request } = await publicClient!.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: stakingContract.address,
         abi: stakingContract.abi,
         functionName: 'unstake',
@@ -648,7 +650,7 @@ export function useStaking(addressOverride?: string) {
         throw new Error('Wallet client, address, or public client not available.');
       }
       const { request } = await publicClient!.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: stakingContract.address,
         abi: stakingContract.abi,
         functionName: 'claimRewards',

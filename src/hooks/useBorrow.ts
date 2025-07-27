@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { useContract } from './useContract';
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { parseAmount, formatAmount } from '@/lib/utils/contracts';
-import { type Hash } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
 import { useWallets, useSendTransaction } from '@privy-io/react-auth';
@@ -59,7 +58,7 @@ export function useBorrow(addressOverride?: string) {
   
   // New state for borrowing capacity and safe lending amount
   const [borrowingCapacity, setBorrowingCapacity] = useState<string>('0');
-  const [safeLendingAmount, setSafeLendingAmount] = useState<string>('0');
+  const [safeLendingAmount, setSafeLendingAmount] = useState<string>('0'); // New state for safe lending amount
 
   // Animated values for smooth UI updates
   const animatedStats = {
@@ -129,7 +128,7 @@ export function useBorrow(addressOverride?: string) {
   useEffect(() => {
     (async () => {
       const safeAmount = await getSystemWideSafeLendingAmount();
-      setSafeLendingAmount(safeAmount);
+      setSafeLendingAmount(safeAmount); // This state variable was removed
     })();
   }, [getSystemWideSafeLendingAmount]);
 
@@ -390,7 +389,7 @@ export function useBorrow(addressOverride?: string) {
 
       // Use the new depositInvoiceAndBorrow function
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'depositInvoiceAndBorrow',

@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { useContract } from './useContract';
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { parseAmount, formatAmount } from '@/lib/utils/contracts';
-import { type Hash } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
 import { useWallets, useSendTransaction } from '@privy-io/react-auth';
@@ -332,7 +331,7 @@ export function useRepay(addressOverride?: string) {
 
       // First approve the lending pool to spend USDC
       const { request: approveRequest } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: usdcContract.address,
         abi: usdcContract.abi,
         functionName: 'approve',
@@ -344,7 +343,7 @@ export function useRepay(addressOverride?: string) {
 
       // Then repay the loan
       const { request: repayRequest } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'repay',

@@ -10,11 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Plus, FileText, DollarSign, CheckCircle, XCircle, Upload } from 'lucide-react';
+import { Loader2, Plus, FileText, DollarSign, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { generateEIP681URI } from '@/utils/eip681';
-import { useAccount } from 'wagmi';
 import { useWallets } from '@privy-io/react-auth';
+import Link from 'next/link';
 
 export function InvoiceInterface() {
   const { wallets } = useWallets();
@@ -27,9 +27,7 @@ export function InvoiceInterface() {
     invoices, 
     isLoading, 
     error, 
-    createInvoice,
     verifyInvoice,
-    getInvoiceDetails,
     fetchInvoices,
     userInvoices,
     fetchUserInvoices
@@ -82,7 +80,6 @@ export function InvoiceInterface() {
     dueDate: '',
     metadata: '',
   });
-  const [isCreating, setIsCreating] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -288,7 +285,7 @@ export function InvoiceInterface() {
                   <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
                   <li>• <strong>IPFS Integration:</strong> Automatic metadata upload and linking</li>
                   <li>• <strong>Instant NFT:</strong> Creates invoice NFT in complete background</li>
-                  <li>• <strong>Perfect UX:</strong> Users don't need blockchain knowledge</li>
+                  <li>• <strong>Perfect UX:</strong> Users don&apos;t need blockchain knowledge</li>
                 </ul>
               </div>
               
@@ -483,7 +480,7 @@ export function InvoiceInterface() {
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">
-                              <a href={eip681} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">Pay with Wallet</a>
+                              <Link href={eip681} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">Pay with Wallet</Link>
                             </div>
                           </TableCell>
                         </TableRow>

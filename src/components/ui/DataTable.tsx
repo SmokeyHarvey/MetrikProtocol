@@ -19,7 +19,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   title,
@@ -68,7 +68,7 @@ export function DataTable<T extends Record<string, any>>({
 
     // Default rendering based on value type
     if (value && typeof value === 'object' && 'toLocaleDateString' in value) {
-      return (value as Date).toLocaleDateString();
+      return (value as unknown as Date).toLocaleDateString();
     }
     
     if (typeof value === 'boolean') {

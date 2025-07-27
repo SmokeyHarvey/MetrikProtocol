@@ -5,9 +5,8 @@ import { SupplierStakingHistory } from '@/components/dashboard/SupplierStakingHi
 import { useState, useEffect } from 'react';
 import * as Privy from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { BrowserProvider, Contract, parseUnits, keccak256, toUtf8Bytes } from 'ethers';
+import { parseUnits, keccak256, toUtf8Bytes } from 'ethers';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
-import metrikAbi from '@/lib/contracts/abis/MockERC20.json';
 import { useSendTransaction } from '@privy-io/react-auth';
 import { encodeFunctionData } from 'viem';
 import { useDisconnect } from 'wagmi';

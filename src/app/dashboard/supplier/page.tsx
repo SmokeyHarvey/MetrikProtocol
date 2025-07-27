@@ -42,12 +42,12 @@ export default function SupplierDashboard() {
 
   // Hooks for data
   const { stakedAmount, currentTier, metrikBalance } = useStaking(address as `0x${string}`);
-  const { outstandingLoans, repaymentStats, usdcBalance } = useRepay(address as `0x${string}`);
-  const { invoices, userInvoices, fetchInvoices } = useInvoiceNFT(address as `0x${string}`);
+  const { outstandingLoans, repaymentStats } = useRepay(address as `0x${string}`);
+  const { userInvoices, fetchInvoices } = useInvoiceNFT(address as `0x${string}`);
   const { userLoans, activeLoans, borrowStats } = useBorrow(address as `0x${string}`);
   
   // Token balances
-  const { balances, getFormattedBalance } = useTokenBalance();
+  const { getFormattedBalance } = useTokenBalance();
 
   const [isLoading, setIsLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -86,7 +86,6 @@ export default function SupplierDashboard() {
     currentTier,
     stakingTier,
     address,
-    balances,
     metrikBalance
   });
 
@@ -112,7 +111,7 @@ export default function SupplierDashboard() {
         
         // Fetch recent invoice events
         if (userInvoices && userInvoices.length > 0) {
-          userInvoices.forEach((invoice, index) => {
+          userInvoices.forEach((invoice) => {
             activity.push({
               id: `invoice-${invoice.id}`,
               type: 'invoice',
@@ -126,7 +125,7 @@ export default function SupplierDashboard() {
         
         // Fetch recent borrowing events
         if (userLoans && userLoans.length > 0) {
-          userLoans.forEach((loan, index) => {
+          userLoans.forEach((loan) => {
             activity.push({
               id: `borrow-${loan.invoiceId}`,
               type: 'borrow',

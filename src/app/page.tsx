@@ -35,7 +35,7 @@ export default function Home() {
         if (window.ethereum) {
           try {
             await (window.ethereum as any).request({ method: 'wallet_requestPermissions', params: [] });
-          } catch (e) {
+          } catch {
             // Ignore errors
           }
         }
@@ -127,11 +127,11 @@ export default function Home() {
               </button>
             </div>
             <div className="mt-3 text-xs text-gray-500 bg-gray-50 p-2 rounded">
-              <p><strong>Note:</strong> If you're still seeing the same wallet address after switching accounts, try:</p>
+              <p><strong>Note:</strong> If you&apos;re still seeing the same wallet address after switching accounts, try:</p>
               <ul className="list-disc list-inside mt-1 space-y-1">
-                <li>Clear your browser's local storage and cookies</li>
-                <li>Use an incognito/private browser window</li>
-                <li>Wait a few seconds after logging out before logging in with a different email</li>
+                              <li>Clear your browser&apos;s local storage and cookies</li>
+              <li>Use an incognito/private browser window</li>
+              <li>Wait a few seconds after logging out before logging in with a different email</li>
               </ul>
             </div>
           </div>
@@ -163,7 +163,7 @@ export default function Home() {
             <div className="flex items-center justify-between">
               <div className="text-left">
                 <p className="text-sm text-yellow-800">Authentication successful!</p>
-                <p className="text-xs text-yellow-600">If you're not redirected automatically, click the button below.</p>
+                <p className="text-xs text-yellow-600">If you&apos;re not redirected automatically, click the button below.</p>
               </div>
               <button
                 onClick={() => {

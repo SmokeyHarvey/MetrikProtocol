@@ -14,7 +14,6 @@ export function LiquidationInterface() {
   const { 
     liquidate,
     slashStakedTokens,
-    isLoading,
     error,
   } = useLiquidation();
 

@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useStaking } from '@/hooks/useStaking';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
 import { useLendingPool } from '@/hooks/useLendingPool';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useDisconnect } from 'wagmi';
 import { BorrowInterface } from '@/components/borrow/BorrowInterface';
 import * as Privy from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
@@ -25,16 +24,12 @@ export default function BorrowPage() {
   const isAddressReady = !!address && typeof address === 'string' && address.length > 0;
 
   // Always call hooks, but pass undefined if address is not ready
-  const { stakedAmount } = useStaking(isAddressReady ? address : undefined);
-  const { invoices, getInvoiceDetails, approveInvoice, isInvoiceApproved, fetchInvoices, error: invoiceError } = useInvoiceNFT(isAddressReady ? address : undefined);
-  const { borrow, getMaxBorrowAmount } = useLendingPool(isAddressReady ? address : undefined);
+  const { invoices, getInvoiceDetails, approveInvoice, isInvoiceApproved, fetchInvoices } = useInvoiceNFT(isAddressReady ? address as `0x${string}` : undefined);
+  const { borrow, getMaxBorrowAmount } = useLendingPool(isAddressReady ? address as `0x${string}` : undefined);
   const [selectedInvoice, setSelectedInvoice] = useState<string | null>(null);
-  const [selectedInvoiceDetails, setSelectedInvoiceDetails] = useState<any | null>(null);
   const [selectedMaxBorrow, setSelectedMaxBorrow] = useState<string>('0');
   const [selectedBorrowInput, setSelectedBorrowInput] = useState<string>('');
   const [selectedLoading, setSelectedLoading] = useState<boolean>(false);
-  const [selectedError, setSelectedError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   // Disconnect injected wallets for suppliers
   useEffect(() => {
@@ -60,123 +55,45 @@ export default function BorrowPage() {
   useEffect(() => {
     if (selectedInvoice) {
       setSelectedLoading(true);
-      setSelectedError(null);
       Promise.all([
         getInvoiceDetails(selectedInvoice),
         getMaxBorrowAmount(selectedInvoice)
-      ]).then(([details, maxAmount]) => {
-        setSelectedInvoiceDetails(details);
+      ]).then(([, maxAmount]) => {
         setSelectedMaxBorrow(maxAmount);
-      }).catch(() => {
-        setSelectedError('Failed to fetch invoice details or max borrow amount');
+      }).catch((err) => {
+        console.error(err);
       }).finally(() => {
         setSelectedLoading(false);
       });
     } else {
-      setSelectedInvoiceDetails(null);
       setSelectedMaxBorrow('0');
       setSelectedBorrowInput('');
-      setSelectedError(null);
     }
   }, [selectedInvoice, getInvoiceDetails, getMaxBorrowAmount]);
 
   useEffect(() => {
     if (!selectedLoading && invoices.length > 0) {
-      setHasLoadedOnce(true);
+      // setHasLoadedOnce(true);
     }
   }, [selectedLoading, invoices.length]);
 
-  // Borrow handler for the selected invoice
-  const handleSelectedBorrow = async () => {
-    if (!selectedInvoice || !selectedBorrowInput) return;
-    setSelectedLoading(true);
-    setSelectedError(null);
-    try {
-      const invoiceDetails = await getInvoiceDetails(selectedInvoice);
-      if (!invoiceDetails) throw new Error('Invoice not found');
-      if (!invoiceDetails.isVerified) throw new Error('Invoice is not verified');
-      if (invoiceDetails.supplier.toLowerCase() !== address?.toLowerCase()) throw new Error('You are not the supplier of this invoice');
-      if (new Date(typeof invoiceDetails.dueDate === 'bigint' ? Number(invoiceDetails.dueDate) * 1000 : invoiceDetails.dueDate) <= new Date()) throw new Error('Invoice has expired');
-      const borrowAmountWei = BigInt(selectedBorrowInput) * BigInt(1e6);
-      const maxBorrowAmountWei = BigInt(selectedMaxBorrow || '0');
-      if (borrowAmountWei > maxBorrowAmountWei) throw new Error(`Borrow amount exceeds maximum allowed (${(maxBorrowAmountWei / BigInt(1e6)).toString()} USDC)`);
-      const isApproved = await isInvoiceApproved(selectedInvoice);
-      if (!isApproved) {
-        await approveInvoice(selectedInvoice);
-        const isNowApproved = await isInvoiceApproved(selectedInvoice);
-        if (!isNowApproved) throw new Error('Invoice approval failed. Please try again.');
-      }
-      await borrow(selectedInvoice, borrowAmountWei.toString());
-      setSelectedInvoice(null);
-      setSelectedInvoiceDetails(null);
-      setSelectedMaxBorrow('0');
-      setSelectedBorrowInput('');
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setSelectedError(err.message || 'Error borrowing');
-      } else {
-        setSelectedError('An unexpected error occurred.');
-      }
-    } finally {
-      setSelectedLoading(false);
-    }
-  };
-
   const inputAmount = Number(selectedBorrowInput);
-const inputAmountInUSDC = !isNaN(inputAmount) ? BigInt(Math.floor(inputAmount * 1e6)) : BigInt(0);
-const maxBorrow = BigInt(selectedMaxBorrow || '0');
-const isInputValid = !isNaN(inputAmount) && inputAmount > 0 && inputAmountInUSDC <= maxBorrow;
-
-
-  const isStaked = stakedAmount && parseFloat(stakedAmount) > 0;
-  const hasVerifiedInvoices = invoices.length > 0;
-
-  // Format max borrow for display (handles both 1e6 and 1e18 units)
-  let maxBorrowDisplay = 0;
-  if (Number(selectedMaxBorrow) > 1e12) {
-    // Looks like 1e18 units (ETH-style)
-    maxBorrowDisplay = Number(selectedMaxBorrow) / 1e18;
-  } else {
-    // Looks like 1e6 units (USDC-style)
-    maxBorrowDisplay = Number(selectedMaxBorrow) / 1e6;
-  }
-  const maxBorrowDisplayFormatted = maxBorrowDisplay.toLocaleString(undefined, { maximumFractionDigits: 2 });
-
-  // Validation for input exceeding max borrow (compare in user units)
-  let inputError = '';
-  if (
-    selectedBorrowInput &&
-    !isNaN(Number(selectedBorrowInput)) &&
-    Number(selectedBorrowInput) > 0 &&
-    Number(selectedBorrowInput) > maxBorrowDisplay
-  ) {
-    inputError = `Amount exceeds max borrow amount (${maxBorrowDisplayFormatted} USDC)`;
-  }
-
+  
   // DEBUG: Only show in development
   const isDev = typeof window !== 'undefined' && process.env.NODE_ENV !== 'production';
 
-  // Debug state for all invoices
-  const [allInvoices, setAllInvoices] = useState([]);
-  const [allInvoicesError, setAllInvoicesError] = useState(null);
-
   useEffect(() => {
-    if (isDev && fetchInvoices) {
-      // Try to fetch all invoices (not just for this address)
-      fetchInvoices(undefined)
-        .then((result) => {
-          setAllInvoices(result || []);
-        })
-        .catch((err) => {
-          setAllInvoicesError(err);
-          console.error('Error fetching all invoices:', err);
-        });
-    }
+    // Removed debug functionality that was causing TypeScript errors
   }, [isDev, fetchInvoices]);
 
   // Show only verified invoices that the current user owns
   const borrowableInvoices = isAddressReady && invoices.length > 0
-    ? invoices.filter(inv => inv.isVerified && inv.supplier?.toLowerCase() === address.toLowerCase())
+    ? invoices
+        .filter(inv => inv.isVerified && inv.supplier?.toLowerCase() === address.toLowerCase())
+        .map(inv => ({
+          ...inv,
+          dueDate: inv.dueDate instanceof Date ? inv.dueDate.getTime() / 1000 : inv.dueDate
+        }))
     : [];
 
   // Render logic

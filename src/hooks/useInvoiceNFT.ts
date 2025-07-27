@@ -8,6 +8,7 @@ import { useAnimatedValue } from './useAnimatedValue';
 import { useWallets, useSendTransaction } from '@privy-io/react-auth';
 import { encodeFunctionData } from 'viem';
 import { useSeamlessTransaction } from './useSeamlessTransaction';
+import { CONTRACT_ADDRESSES } from '@/lib/contracts/config';
 
 export interface Invoice {
   id: string;
@@ -178,11 +179,11 @@ export function useInvoiceNFT(address?: Address) {
           console.log(`useInvoiceNFT: tokenByIndex(${i}) result:`, tokenId);
           
           // Skip if we already processed this tokenId
-          if (foundTokenIds.has(tokenId.toString())) {
+          if (foundTokenIds.has((tokenId as bigint).toString())) {
             console.log(`useInvoiceNFT: Skipping duplicate tokenId ${tokenId}`);
             continue;
           }
-          foundTokenIds.add(tokenId.toString());
+          foundTokenIds.add((tokenId as bigint).toString());
           
           const invoice = await readClient.readContract({
           address: invoiceNFTContract.address,
@@ -192,7 +193,7 @@ export function useInvoiceNFT(address?: Address) {
           }) as RawInvoice;
           console.log(`useInvoiceNFT: getInvoice(${tokenId}) result:`, invoice);
           invoicesArr.push({ 
-            id: tokenId.toString(), 
+            id: (tokenId as bigint).toString(), 
             invoiceId: invoice.invoiceId,
             supplier: invoice.supplier,
             buyer: invoice.buyer,
@@ -484,7 +485,7 @@ export function useInvoiceNFT(address?: Address) {
         });
         await publicClient?.waitForTransactionReceipt({ hash });
         if (privyWallet?.address) {
-          await fetchInvoices(privyWallet.address);
+          await fetchInvoices(privyWallet.address as `0x${string}`);
         }
         toast.success('Invoice verified successfully!');
         return hash;

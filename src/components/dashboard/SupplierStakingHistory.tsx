@@ -10,9 +10,7 @@ export function SupplierStakingHistory() {
   const { 
     activeStakes, 
     stakeHistory, 
-    animatedStakeUsage,
     isLoading, 
-    error 
   } = useStakingHistory();
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 

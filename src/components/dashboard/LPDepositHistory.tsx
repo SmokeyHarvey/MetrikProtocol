@@ -5,7 +5,7 @@ import { CheckCircle } from 'lucide-react';
 import { useEffect, useState } from "react";
 
 export function LPDepositHistory() {
-  const { deposits, animatedStats, isLoading, error } = useLPDepositHistory();
+  const { deposits, animatedStats, isLoading } = useLPDepositHistory();
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   useEffect(() => {

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useContract } from './useContract';
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
-import { parseAmount, formatAmount } from '@/lib/utils/contracts';
+import { parseAmount } from '@/lib/utils/contracts';
 import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
@@ -227,7 +227,7 @@ export function useInvoice(addressOverride?: string) {
       const dueDateTimestamp = BigInt(Math.floor(dueDate.getTime() / 1000));
 
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'mintInvoiceNFT',
@@ -239,7 +239,7 @@ export function useInvoice(addressOverride?: string) {
 
       // Refresh invoices list
       if (address) {
-        await fetchUserInvoices(address);
+        await fetchUserInvoices(address as `0x${string}`);
         await fetchAllInvoices();
       }
 
@@ -311,11 +311,11 @@ export function useInvoice(addressOverride?: string) {
   useEffect(() => {
     if (address) {
       fetchAllInvoices();
-      fetchUserInvoices(address);
+      fetchUserInvoices(address as `0x${string}`);
 
       const interval = setInterval(() => {
         fetchAllInvoices();
-        fetchUserInvoices(address);
+        fetchUserInvoices(address as `0x${string}`);
       }, 30000); // Refetch every 30 seconds
 
       return () => clearInterval(interval);
@@ -334,7 +334,7 @@ export function useInvoice(addressOverride?: string) {
     refetch: () => {
       if (address) {
         fetchAllInvoices();
-        fetchUserInvoices(address);
+        fetchUserInvoices(address as `0x${string}`);
       }
     },
     // Animated values for smooth UI updates

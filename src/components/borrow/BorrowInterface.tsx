@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useBorrow } from '@/hooks/useBorrow';
-import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
 import { Loader2, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle, Shield, Target, CreditCard } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useWallets } from '@privy-io/react-auth';
@@ -47,7 +45,6 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
   const [isBorrowing, setIsBorrowing] = useState(false);
   const {
     userLoans,
-    borrowStats,
     isLoading,
     error,
     borrow,
@@ -56,7 +53,6 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
     getBorrowingCapacity,
     borrowingCapacity,
     safeLendingAmount,
-    refetch,
     getUserLoansRaw,
     getLoanByIdRaw,
     getMaxBorrowAmount,
@@ -168,11 +164,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
         }))
       });
     }
-    // Defensive: if invoicesError is set, stop borrowing
-    if (invoicesError) {
-      // Error occurred, but we handle it through the executeOneClickBorrow function
-    }
-  }, [invoices, invoicesError]);
+  }, [invoices]);
 
   // Fetch max borrow amounts from contract when invoices change
   React.useEffect(() => {
@@ -473,15 +465,6 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
         Active
       </Badge>
     );
-  };
-
-  const calculateBorrowUtilization = () => {
-    // Use only active loans for utilization
-    const activeBorrowed = userLoans
-      .filter(loan => loan.status === 'active')
-      .reduce((sum, loan) => sum + Number(loan.amount), 0);
-    const maxBorrow = parseFloat(borrowingCapacity) || 1000;
-    return maxBorrow > 0 ? (activeBorrowed / maxBorrow) * 100 : 0;
   };
 
   // Add handler for table borrow button
@@ -848,7 +831,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
               <li>• <strong>Zero-Click:</strong> No wallet confirmations or approval prompts</li>
               <li>• <strong>Automatic NFT Approval:</strong> Invoice NFT approval handled in background</li>
               <li>• <strong>Instant Borrowing:</strong> USDC transferred to your wallet immediately</li>
-              <li>• <strong>Perfect UX:</strong> Users don't need blockchain knowledge</li>
+              <li>• <strong>Perfect UX:</strong> Users don&apos;t need blockchain knowledge</li>
             </ul>
           </div>
 
@@ -945,7 +928,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
             <div>
               <CardTitle>Quick Borrow from Invoices</CardTitle>
               <CardDescription>
-                Click "Borrow" on any verified invoice for instant seamless borrowing
+                Click &quot;Borrow&quot; on any verified invoice for instant seamless borrowing
               </CardDescription>
             </div>
             <Badge variant="secondary" className="bg-green-100 text-green-800">

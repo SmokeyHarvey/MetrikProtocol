@@ -18,7 +18,6 @@ import { keccak256, toUtf8Bytes } from 'ethers';
 const CONTRACT_OWNER = process.env.NEXT_PUBLIC_CONTRACT_OWNER?.toLowerCase();
 
 export default function OwnerDashboard() {
-  const router = useRouter();
   const { address } = useAccount();
   const { 
     invoices, 

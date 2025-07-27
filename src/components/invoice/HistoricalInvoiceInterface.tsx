@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Search, History, BarChart3, FileText, Flame, CheckCircle, Clock } from 'lucide-react';
+import { Loader2, Search, History, BarChart3, FileText, Flame, CheckCircle } from 'lucide-react';
 import { useWallets } from '@privy-io/react-auth';
 import { formatAmount } from '@/lib/utils/contracts';
 
@@ -24,9 +24,8 @@ export function HistoricalInvoiceInterface() {
     getUserBurnedTokens,
     searchInvoiceById,
     getUserHistoricalRecords,
-    isLoading,
     error,
-  } = useInvoiceNFT(address);
+  } = useInvoiceNFT(address as `0x${string}`);
 
   const [searchTokenId, setSearchTokenId] = useState('');
   const [searchInvoiceId, setSearchInvoiceId] = useState('');
@@ -49,7 +48,7 @@ export function HistoricalInvoiceInterface() {
     if (!address) return;
     setIsSearching(true);
     try {
-      const stats = await getUserInvoiceStatistics(address);
+      const stats = await getUserInvoiceStatistics(address as `0x${string}`);
       setUserStats(stats);
       console.log('User statistics:', stats);
     } catch (err) {
@@ -64,8 +63,8 @@ export function HistoricalInvoiceInterface() {
     setIsSearching(true);
     try {
       const [minted, burned] = await Promise.all([
-        getUserMintedTokens(address),
-        getUserBurnedTokens(address)
+        getUserMintedTokens(address as `0x${string}`),
+        getUserBurnedTokens(address as `0x${string}`)
       ]);
       setMintedTokens(minted);
       setBurnedTokens(burned);
@@ -109,7 +108,7 @@ export function HistoricalInvoiceInterface() {
     if (!address) return;
     setIsSearching(true);
     try {
-      const records = await getUserHistoricalRecords(address, 0, 10);
+      const records = await getUserHistoricalRecords(address as `0x${string}`, 0, 10);
       setHistoricalRecords(records);
       console.log('Historical records:', records);
     } catch (err) {
@@ -335,7 +334,7 @@ export function HistoricalInvoiceInterface() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Minted Tokens</CardTitle>
-                    <CardDescription>All tokens you've minted</CardDescription>
+                    <CardDescription>All tokens you&apos;ve minted</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {mintedTokens.length > 0 ? (
@@ -356,7 +355,7 @@ export function HistoricalInvoiceInterface() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Burned Tokens</CardTitle>
-                    <CardDescription>All tokens you've burned (repaid)</CardDescription>
+                    <CardDescription>All tokens you&apos;ve burned (repaid)</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {burnedTokens.length > 0 ? (

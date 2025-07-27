@@ -9,33 +9,21 @@ import { formatUnits } from 'viem';
 export function LendingInterface() {
   const { address } = useAccount();
   const {
-    repay,
     deposit,
     depositWithTranche,
-    withdraw,
     withdrawByTranche,
-    withdrawInterest,
-    getLPInterest,
     getUserTotalLPDeposits,
     getUserLPDeposits,
     getLPTrancheBreakdown,
     checkIsRegisteredLP,
     getLPActiveDeposits,
     getAllRegisteredLPs,
-    borrowedAmount,
-    availableLiquidity,
-    isLoading,
-    error,
-    // New state from updated hook
     userTotalDeposits,
-    userDeposits,
-    trancheBreakdown,
-    isRegisteredLP,
-    lpInterest,
     activeDeposits,
-    allRegisteredLPs,
+    lpInterest,
     withdrawJuniorInterest,
     withdrawSeniorInterest,
+    error,
   } = useLendingPool();
   const { getFormattedBalance } = useTokenBalance();
 
@@ -46,7 +34,6 @@ export function LendingInterface() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedInterestTranche, setSelectedInterestTranche] = useState<Tranche>(Tranche.JUNIOR);
   const [isWithdrawingInterest, setIsWithdrawingInterest] = useState(false);
-  const [showTrancheInfo, setShowTrancheInfo] = useState(false);
   
   // New state for risk confirmation and loader
   const [showRiskInfo, setShowRiskInfo] = useState(false);
@@ -118,14 +105,14 @@ export function LendingInterface() {
       if (selectedTranche === Tranche.JUNIOR) {
         // Use default deposit for Junior tranche
         const result = await deposit(amount);
-        if (result?.hash) {
-          setDepositTxHash(result.hash);
+        if (result) {
+          setDepositTxHash(result);
         }
       } else {
         // Use tranche-specific deposit for Senior tranche
         const result = await depositWithTranche(amount, selectedTranche, lockupDuration);
-        if (result?.hash) {
-          setDepositTxHash(result.hash);
+        if (result) {
+          setDepositTxHash(result);
         }
       }
       setAmount('');
@@ -150,7 +137,7 @@ export function LendingInterface() {
         await withdrawSeniorInterest();
       }
       fetchLPData();
-    } catch (err) {
+    } catch {
       // Error is handled in the hook
     } finally {
       setIsWithdrawingInterest(false);
@@ -159,16 +146,6 @@ export function LendingInterface() {
 
   const getTrancheName = (tranche: Tranche) => {
     return tranche === Tranche.JUNIOR ? 'Flexible Lending' : 'Fixed Lending';
-  };
-
-  const getTrancheAPY = (tranche: Tranche) => {
-    return tranche === Tranche.JUNIOR ? '12% APY' : '7% APY';
-  };
-
-  const getTrancheDescription = (tranche: Tranche) => {
-    return tranche === Tranche.JUNIOR 
-      ? 'Higher risk, higher returns. First to absorb losses.'
-      : 'Lower risk, stable returns. Protected by Junior tranche.';
   };
 
   return (
