@@ -115,7 +115,7 @@ export function useInvoice(addressOverride?: string) {
             invoiceId: invoiceDetails.invoiceId,
             supplier: invoiceDetails.supplier,
             buyer: invoiceDetails.buyer,
-            creditAmount: formatAmount(invoiceDetails.creditAmount),
+            creditAmount: invoiceDetails.creditAmount.toString(),
             dueDate: new Date(Number(invoiceDetails.dueDate) * 1000),
             ipfsHash: invoiceDetails.ipfsHash,
             isVerified: invoiceDetails.isVerified
@@ -132,7 +132,7 @@ export function useInvoice(addressOverride?: string) {
         totalInvoices: Number(totalSupply).toString(),
         verifiedInvoices: verifiedCount.toString(),
         pendingInvoices: pendingCount.toString(),
-        totalValue: formatAmount(totalValue),
+        totalValue: totalValue.toString(),
       });
 
       return formattedInvoices;
@@ -187,7 +187,7 @@ export function useInvoice(addressOverride?: string) {
             invoiceId: invoiceDetails.invoiceId,
             supplier: invoiceDetails.supplier,
             buyer: invoiceDetails.buyer,
-            creditAmount: formatAmount(invoiceDetails.creditAmount),
+            creditAmount: invoiceDetails.creditAmount.toString(),
             dueDate: new Date(Number(invoiceDetails.dueDate) * 1000),
             ipfsHash: invoiceDetails.ipfsHash,
             isVerified: invoiceDetails.isVerified
@@ -223,7 +223,7 @@ export function useInvoice(addressOverride?: string) {
         throw new Error('Wallet client, address, or public client not available.');
       }
 
-      const parsedAmount = parseAmount(creditAmount);
+      const parsedAmount = parseAmount(creditAmount, 6);
       const dueDateTimestamp = BigInt(Math.floor(dueDate.getTime() / 1000));
 
       const { request } = await publicClient.simulateContract({
@@ -274,7 +274,7 @@ export function useInvoice(addressOverride?: string) {
           invoiceId: result.invoiceId,
           supplier: result.supplier,
           buyer: result.buyer,
-          creditAmount: formatAmount(result.creditAmount),
+          creditAmount: result.creditAmount.toString(),
           dueDate: new Date(Number(result.dueDate) * 1000),
           ipfsHash: result.ipfsHash,
           isVerified: result.isVerified

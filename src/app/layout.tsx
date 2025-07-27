@@ -39,7 +39,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <PrivyProvider
           appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cmd45wlum039ql20myccjcwpv"}
           config={{
-            loginMethods: ['email', 'wallet'],
+            loginMethods: ['email'],
             appearance: {
               theme: 'light',
               accentColor: '#0070f3',

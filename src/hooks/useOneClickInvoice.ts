@@ -116,7 +116,7 @@ export function useOneClickInvoice(wallets?: any[]) {
         {
           autoClose: 8000,
           onClick: () => {
-            window.open(`https://sepolia.etherscan.io/tx/${mintTx.hash}`, '_blank');
+            window.open(`https://explorer.testnet.citrea.xyz/tx/${mintTx.hash}`, '_blank');
           }
         }
       );
@@ -134,15 +134,16 @@ export function useOneClickInvoice(wallets?: any[]) {
         if (error.message.includes('User rejected')) {
           toast.warn('Seamless invoice creation cancelled');
         } else if (error.message.includes('insufficient funds')) {
-          toast.error('Insufficient funds for transaction');
-        } else if (error.message.includes('execution reverted')) {
+          toast.error('Insufficient funds for invoice creation');
+        } else if (error.message.includes('vd') || error.message.includes('execution reverted')) {
           toast.error(
-            `❌ Invoice creation failed! 
+            `❌ Invoice creation transaction failed! 
             💡 Possible causes:
-            • Duplicate invoice ID
-            • Invalid amount or date
+            • Insufficient METRIK balance for gas
             • Contract validation failed
-            🔄 Try with different invoice details`,
+            • Network congestion on Citrea testnet
+            🏠 Try: Go to Home page → Claim more tokens
+            🔄 Or use traditional invoice creation method below`,
             { autoClose: 12000 }
           );
         } else {

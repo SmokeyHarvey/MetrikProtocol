@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle, Shield, Target } from 'lucide-react';
+import { Loader2, DollarSign, TrendingUp, Clock, AlertTriangle, CheckCircle, Shield, Target, CreditCard } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useWallets } from '@privy-io/react-auth';
 import { usePublicClient, useWalletClient } from 'wagmi';
@@ -72,6 +72,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
   // Add state to track selected invoice for detail card
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedMaxBorrow, setSelectedMaxBorrow] = useState<string>('');
+  const [borrowTxHash, setBorrowTxHash] = useState<string>('');
 
   // Calculate true borrowing capacity and utilization
   const activeLoanInvoiceIds = React.useMemo(() =>
@@ -117,7 +118,12 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
   // Calculate total borrowing capacity from contract data
   const totalBorrowingCapacity = React.useMemo(() => {
     const total = Object.values(maxBorrowAmounts).reduce((sum, amount) => {
-      return sum + Number(amount || 0);
+      // amount is already formatted string from formatAmount, so just convert to number
+      const numericAmount = Number(amount || 0);
+      console.log('🔍 Formatted max borrow amount:', amount, 'for calculation');
+      console.log('🔍 Numeric amount:', numericAmount, 'USDC');
+      
+      return sum + numericAmount;
     }, 0);
     
     console.log('✅ Total borrowing capacity from contract:', total, 'USDC');
@@ -382,15 +388,8 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
         // Clear form on success
         setBorrowForm({ invoiceId: '', amount: '' });
         
-        // Show success message with transaction details
-        toast.success(`🎉 One-click borrowing completed successfully!`, {
-          autoClose: 8000,
-          onClick: () => {
-            if (result.borrowHash) {
-              window.open(`https://sepolia.etherscan.io/tx/${result.borrowHash}`, '_blank');
-            }
-          }
-        });
+        // Store transaction hash for success modal
+        setBorrowTxHash(result.borrowHash || '');
       }
     } catch (error) {
       console.error('❌ One-click borrowing error:', error);
@@ -653,15 +652,26 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                 className="absolute left-0 top-1/2 -translate-y-1/2 h-3 bg-indigo-500 rounded-full z-10 transition-all"
                 style={{ width: `${Math.min(utilizationRate, 100)}%` }}
               />
-              {/* Safe Limit Marker */}
-              <div
-                className="absolute flex flex-col items-center z-20"
-                style={{ left: `calc(${safeLendingMarkerPosition}% - 1px)` }}
-                title={`System Safe Lending Limit: $${Number(safeLendingAmount).toLocaleString()}`}
-              >
-                <div className="mb-1 text-xs text-yellow-600 font-semibold whitespace-nowrap bg-white px-1 rounded shadow border border-yellow-300">Safe Limit</div>
-                <div className="w-0 h-4 border-l-2 border-dashed border-yellow-500" />
-              </div>
+              {/* Conditional Safe Limit Display */}
+              {Number(safeLendingAmount) > totalBorrowingCapacity ? (
+                // System can safely provide loans - show positive message
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2 z-20">
+                  <div className="flex items-center gap-1 bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium border border-green-300">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>System can safely provide loans</span>
+                  </div>
+                </div>
+              ) : (
+                // Safe Limit Marker (when safe lending amount is within capacity)
+                <div
+                  className="absolute flex flex-col items-center z-20"
+                  style={{ left: `calc(${safeLendingMarkerPosition}% - 1px)` }}
+                  title={`System Safe Lending Limit: $${Number(safeLendingAmount).toLocaleString()}`}
+                >
+                  <div className="mb-1 text-xs text-yellow-600 font-semibold whitespace-nowrap bg-white px-1 rounded shadow border border-yellow-300">Safe Limit</div>
+                  <div className="w-0 h-4 border-l-2 border-dashed border-yellow-500" />
+                </div>
+              )}
             </div>
             <div className="flex justify-between text-xs text-muted-foreground mt-2">
               <span>{activeBorrowed.toLocaleString()} USDC borrowed</span>
@@ -748,66 +758,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
         </TabsList>
 
         <TabsContent value="borrow" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Borrow Against Invoice</CardTitle>
-              <CardDescription>
-                Borrow USDC against your verified invoices
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleOneClickBorrow} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="invoiceId">Invoice ID</Label>
-                    <select
-                      id="invoiceId"
-                      value={borrowForm.invoiceId}
-                      onChange={e => setBorrowForm(prev => ({ ...prev, invoiceId: e.target.value }))}
-                      required
-                      disabled={isExecuting || invoicesLoading || Boolean(invoicesError) || !invoices || invoices.length === 0}
-                      className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    >
-                      <option value="" disabled>Select an invoice</option>
-                      {invoices && invoices.length > 0 && invoices.map((inv: Invoice) => (
-                        <option key={inv.id} value={inv.id}>
-                          #{inv.id} — {inv.invoiceId}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Select the numeric token ID (e.g. 1, 2, 3) of your verified invoice. The label shows both the token ID and the human-readable invoice ID.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Borrow Amount (USDC)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      placeholder="500"
-                      value={borrowForm.amount}
-                      onChange={(e) => setBorrowForm(prev => ({ ...prev, amount: e.target.value }))}
-                      required
-                      disabled={isExecuting}
-                    />
-                  </div>
-                </div>
-                <Button type="submit" disabled={isExecuting} className="w-full font-bold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {isExecuting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing Borrow...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="mr-2 h-4 w-4" />
-                      Borrow USDC
-                    </>
-                  )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          {/* Borrow Against Invoice card removed as requested */}
         </TabsContent>
 
         <TabsContent value="my-loans" className="space-y-4">
@@ -876,13 +827,131 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
         </TabsContent>
       </Tabs>
 
-      {/* Table of invoices with Borrow button (second option) */}
+      {/* Enhanced Seamless Borrowing Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Borrow Against Invoice</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <span>Seamless Borrowing</span>
+            <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full font-normal">
+              ⚡ Zero-Click Available
+            </span>
+          </CardTitle>
           <CardDescription>
-            Select a verified invoice and borrow USDC against it. The platform will automatically handle NFT approval if needed.
+            Borrow USDC against your verified invoices with zero wallet prompts. The platform handles NFT approval and borrowing automatically.
           </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Seamless Borrow Benefits Info */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200 mb-4">
+            <h4 className="text-sm font-semibold text-green-900 mb-2">⚡ Why Use Seamless Borrowing?</h4>
+            <ul className="text-xs text-green-800 space-y-1">
+              <li>• <strong>Zero-Click:</strong> No wallet confirmations or approval prompts</li>
+              <li>• <strong>Automatic NFT Approval:</strong> Invoice NFT approval handled in background</li>
+              <li>• <strong>Instant Borrowing:</strong> USDC transferred to your wallet immediately</li>
+              <li>• <strong>Perfect UX:</strong> Users don't need blockchain knowledge</li>
+            </ul>
+          </div>
+
+          {/* Seamless Execution Progress */}
+          {isExecuting && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-amber-900">⚡ Seamless Execution in Progress</h4>
+                  <p className="text-xs text-amber-800 mt-1">
+                    Running NFT approval + borrowing in background... No action needed from you!
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-amber-700">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Step 1: Invoice NFT approval transaction submitted</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-amber-700">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                      <span>Step 2: Processing borrowing transaction</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleOneClickBorrow} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="seamlessInvoiceId">Select Invoice</Label>
+                <select
+                  id="seamlessInvoiceId"
+                  value={borrowForm.invoiceId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setBorrowForm(prev => ({ ...prev, invoiceId: e.target.value }))}
+                  required
+                  disabled={isExecuting}
+                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 text-black"
+                >
+                  <option value="">Select a verified invoice...</option>
+                  {invoices
+                    .filter(inv => inv.isVerified && !activeLoanInvoiceIds.includes(String(inv.id)))
+                    .map(inv => (
+                      <option key={inv.id} value={String(inv.id)}>
+                        {inv.invoiceId} - ${inv.creditAmount != null ? (Number(inv.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : inv.amount != null ? inv.amount : 'N/A'} USDC
+                      </option>
+                    ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Choose from your verified invoices
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="seamlessAmount">Borrow Amount (USDC)</Label>
+                <Input
+                  id="seamlessAmount"
+                  placeholder="1000"
+                  value={borrowForm.amount}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBorrowForm(prev => ({ ...prev, amount: e.target.value }))}
+                  required
+                  disabled={isExecuting}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Amount of USDC to borrow against the invoice
+                </p>
+              </div>
+            </div>
+            <Button 
+              type="submit" 
+              disabled={isExecuting} 
+              className="w-full font-bold rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2 px-4 shadow focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ⚡ Processing Seamlessly...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  ⚡ SEAMLESS BORROW (Zero-Click)
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Quick Borrow from Invoice Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Quick Borrow from Invoices</CardTitle>
+              <CardDescription>
+                Click "Borrow" on any verified invoice for instant seamless borrowing
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="bg-green-100 text-green-800">
+              ⚡ Seamless
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -909,8 +978,18 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                       variant="default"
                       onClick={() => handleTableBorrowClick(String(inv.id))}
                       disabled={isExecuting}
+                      className="font-bold rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-1 px-3 shadow focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Borrow
+                      {isExecuting ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          ⚡ Borrow
+                        </>
+                      )}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -953,7 +1032,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Due Date</div>
-                      <div className="text-sm">{invoice.dueDate != null ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</div>
+                                              <div className="text-sm">{invoice.dueDate != null ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Status</div>
@@ -969,7 +1048,7 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
                         {isLoanActive 
                           ? '$0.00' 
                           : selectedMaxBorrow 
-                            ? `${Number(selectedMaxBorrow).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC` 
+                            ? `${selectedMaxBorrow} USDC` 
                             : 'Loading...'}
                       </div>
                     </div>
@@ -1037,6 +1116,80 @@ export function BorrowInterface({ invoices }: { invoices: Invoice[] }) {
           </div>
         );
       })()}
+
+      {/* Centered Borrow Loader */}
+      {isExecuting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ⚡ Seamless Borrowing
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Please wait while we process your borrow request...
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Processing borrow request...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Borrow Success Modal */}
+      {borrowTxHash && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ✅ Seamless Borrowing Completed!
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your USDC has been transferred to your wallet.
+                </p>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-600 mb-1">Transaction Hash:</p>
+                  <p className="text-xs font-mono text-gray-800 break-all">
+                    {borrowTxHash}
+                  </p>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    onClick={() => {
+                      window.open(`https://explorer.testnet.citrea.xyz/tx/${borrowTxHash}`, '_blank');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                    size="sm"
+                  >
+                    🔍 View on Explorer
+                  </Button>
+                  <Button
+                    onClick={() => setBorrowTxHash('')}
+                    className="bg-gray-600 hover:bg-gray-700 text-white text-sm"
+                    size="sm"
+                  >
+                    ✕ Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

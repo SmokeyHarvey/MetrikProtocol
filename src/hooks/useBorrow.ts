@@ -84,12 +84,14 @@ export function useBorrow(addressOverride?: string) {
         abi: lendingPoolContract.abi,
         functionName: 'getBorrowingCapacity',
         args: [userAddress || address || '0x0'],
-      });
-      // If the raw value is 7500, do not divide by 1e6
-      if (typeof capacity === 'object' && capacity !== null && 'toString' in capacity && typeof capacity.toString === 'function') {
-        return capacity.toString();
-      }
-      return String(capacity);
+      }) as bigint;
+      
+      console.log('🔍 Raw borrowing capacity from contract:', capacity);
+      // Format with 6 decimals for USDC
+      const formattedCapacity = formatAmount(capacity, 6);
+      console.log('🔍 Formatted borrowing capacity:', formattedCapacity);
+      
+      return formattedCapacity;
     } catch (err) {
       console.error('Error fetching borrowing capacity:', err);
       return '0';
@@ -99,18 +101,24 @@ export function useBorrow(addressOverride?: string) {
   // New function to get system-wide safe lending amount
   const getSystemWideSafeLendingAmount = useCallback(async (): Promise<string> => {
     if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
-      setError('System-wide safe lending: missing contract.');
+      console.error('Safe lending amount: missing contract.');
       return '0';
     }
+
     try {
+      console.log('🔍 Fetching system-wide safe lending amount from contract...');
+      
       const safeAmount = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getSystemWideSafeLendingAmount',
-        args: [],
       });
-      // USDC has 6 decimals
-      return (Number(safeAmount) / 1e6).toString();
+      
+      console.log('🔍 Raw safe lending amount from contract:', safeAmount);
+      const formattedAmount = formatAmount(safeAmount as bigint, 6); // USDC has 6 decimals
+      console.log('🔍 Formatted safe lending amount:', formattedAmount);
+      
+      return formattedAmount;
     } catch (err) {
       console.error('Error fetching system-wide safe lending amount:', err);
       return '0';

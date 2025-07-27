@@ -32,6 +32,12 @@ export function useOneClickBorrow(wallets?: any[]) {
       return;
     }
 
+    // Prevent duplicate execution
+    if (isExecuting) {
+      console.log('⚠️ Already executing, skipping duplicate call');
+      return;
+    }
+
     setIsExecuting(true);
     
     try {
@@ -55,6 +61,7 @@ export function useOneClickBorrow(wallets?: any[]) {
       
       // Step 1: Prepare batch transaction on backend
       console.log('🔄 Preparing one-click borrow transaction...');
+      console.log('📤 Sending to backend:', { invoiceId, amount, userAddress, amountType: typeof amount });
       const response = await fetch('/api/prepare-batch-borrow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,18 +208,27 @@ export function useOneClickBorrow(wallets?: any[]) {
             functionName: 'getMaxBorrowAmount',
             args: [BigInt(invoiceId)],
           }) as bigint;
+          // The contract returns maxBorrowAmount in 18-decimal format, convert to USDC display format
+          // The contract returns maxBorrowAmount in 6-decimal format, convert to display format
           const maxBorrowFormatted = (Number(maxBorrowAmount) / 1e6).toString();
           console.log('💰 Borrow amount validation:', {
             invoiceId,
             requestedAmount: amount,
-            maxBorrowAmount: maxBorrowFormatted,
-            requestedAmountWei: `${amount.replace(' USDC', '')}000000`,
+            maxBorrowAmountRaw: maxBorrowAmount.toString(),
+            maxBorrowAmountFormatted: maxBorrowFormatted,
+            requestedAmountWei: `${amount}000000`,
             maxBorrowAmountWei: maxBorrowAmount.toString(),
-            withinLimit: Number(amount.replace(' USDC', '')) <= Number(maxBorrowFormatted)
+            withinLimit: Number(amount) <= Number(maxBorrowFormatted),
+            debug: {
+              maxBorrowAsNumber: Number(maxBorrowAmount),
+              dividedBy1e18: Number(maxBorrowAmount) / 1e18,
+              dividedBy1e12: Number(maxBorrowAmount) / 1e12,
+              dividedBy1e6: Number(maxBorrowAmount) / 1e6
+            }
           });
 
-          if (Number(amount.replace(' USDC', '')) > Number(maxBorrowFormatted)) {
-            throw new Error(`InvalidBorrowAmount: Requested ${amount} exceeds maximum allowed ${maxBorrowFormatted} USDC for invoice ${invoiceId}`);
+          if (Number(amount) > Number(maxBorrowFormatted)) {
+            throw new Error(`InvalidBorrowAmount: Requested ${amount} USDC exceeds maximum allowed ${maxBorrowFormatted} USDC for invoice ${invoiceId}`);
           }
 
           // Check 3: Invoice verification and expiry 
@@ -258,7 +274,7 @@ export function useOneClickBorrow(wallets?: any[]) {
           }) as bigint;
 
           const actualLiquidity = Number(availableLiquidity) - Number(totalBorrowed);
-          const requestedAmountWei = Number(amount.replace(' USDC', '')) * 1e6;
+          const requestedAmountWei = Number(amount) * 1e6;
           
           console.log('💧 Pool liquidity validation:', {
             totalDeposits: (Number(availableLiquidity) / 1e6).toString(),
@@ -364,26 +380,18 @@ export function useOneClickBorrow(wallets?: any[]) {
             rawDataLength: borrowCallData.length
           });
 
-          // Decode the function call manually
-          const functionSelector = borrowCallData.slice(0, 10); // First 4 bytes (8 hex chars + 0x)
-          const params = borrowCallData.slice(10); // Rest is parameters
+          // Decode the function call manually to verify the amount
+          const functionSelector = borrowCallData.slice(0, 10);
+          const params = borrowCallData.slice(10);
           
-          console.log('🔧 Function call breakdown:', {
-            functionSelector: functionSelector,
-            expectedFunction: 'depositInvoiceAndBorrow(uint256,uint256)',
-            parametersHex: params,
-            parametersLength: params.length
-          });
-
-          // Parse parameters (each uint256 is 32 bytes = 64 hex chars)
-          if (params.length >= 128) { // 2 parameters * 64 chars each
+          if (params.length >= 128) {
             const tokenIdHex = params.slice(0, 64);
             const borrowAmountHex = params.slice(64, 128);
             
             const tokenIdDecimal = BigInt('0x' + tokenIdHex);
             const borrowAmountDecimal = BigInt('0x' + borrowAmountHex);
             
-            console.log('📊 Decoded parameters:', {
+            console.log('🔍 DECODED TRANSACTION PARAMETERS:', {
               tokenId: {
                 hex: '0x' + tokenIdHex,
                 decimal: tokenIdDecimal.toString(),
@@ -392,11 +400,27 @@ export function useOneClickBorrow(wallets?: any[]) {
               borrowAmount: {
                 hex: '0x' + borrowAmountHex,
                 decimal: borrowAmountDecimal.toString(),
-                expectedWei: (Number(amount.replace(' USDC', '')) * 1e6).toString(),
-                expectedUSDC: (Number(borrowAmountDecimal) / 1e6).toString() + ' USDC'
+                expectedWei: (Number(amount) * 1e6).toString(),
+                expectedUSDC: (Number(borrowAmountDecimal) / 1e6).toString() + ' USDC',
+                sentAsUSDC: (Number(amount)).toString() + ' USDC'
               }
             });
           }
+
+          // Decode the function call manually
+          console.log('🔧 Function call breakdown:', {
+            functionSelector: functionSelector,
+            expectedFunction: 'depositInvoiceAndBorrow(uint256,uint256)',
+            parametersHex: params,
+            parametersLength: params.length
+          });
+          
+          console.log('🔧 Function call breakdown:', {
+            functionSelector: functionSelector,
+            expectedFunction: 'depositInvoiceAndBorrow(uint256,uint256)',
+            parametersHex: params,
+            parametersLength: params.length
+          });
 
           // Log complete contract state at execution time
           console.log('📋 COMPLETE CONTRACT STATE AT EXECUTION:', {
@@ -416,6 +440,27 @@ export function useOneClickBorrow(wallets?: any[]) {
 
           console.log('⚠️ This is the EXACT payload being sent to the smart contract. If this fails, the issue is in the contract logic or state.');
           
+          // Double-check the max borrow amount right before simulation
+          try {
+            const currentMaxBorrow = await publicClient.readContract({
+              address: CONTRACT_ADDRESSES.LENDING_POOL,
+              abi: lendingPoolAbi.abi,
+              functionName: 'getMaxBorrowAmount',
+              args: [BigInt(invoiceId)],
+            }) as bigint;
+            
+            console.log('🔍 FINAL MAX BORROW AMOUNT CHECK:', {
+              invoiceId,
+              currentMaxBorrow: currentMaxBorrow.toString(),
+              requestedAmount: (Number(amount) * 1e6).toString(),
+              requestedAmountUSDC: amount,
+              maxBorrowUSDC: (Number(currentMaxBorrow) / 1e6).toString(),
+              withinLimit: Number(amount) * 1e6 <= Number(currentMaxBorrow)
+            });
+          } catch (maxBorrowError) {
+            console.error('❌ Error checking max borrow amount:', maxBorrowError);
+          }
+          
           try {
             // Simulate the call with current state
             console.log('🧪 ATTEMPTING CONTRACT SIMULATION...');
@@ -424,7 +469,7 @@ export function useOneClickBorrow(wallets?: any[]) {
               address: batchCalls[1].to as `0x${string}`,
               abi: lendingPoolAbi.abi,
               functionName: 'depositInvoiceAndBorrow',
-              args: [BigInt(invoiceId), BigInt(Number(amount.replace(' USDC', '')) * 1e6)],
+              args: [BigInt(invoiceId), BigInt(Number(amount) * 1e6)], // Use 6 decimals (USDC format)
               account: userAddress as `0x${string}`
             });
             
@@ -477,18 +522,62 @@ export function useOneClickBorrow(wallets?: any[]) {
         userAddress
       });
       
-      const borrowTx = await sendTransaction(
-        {
-          to: batchCalls[1].to as `0x${string}`,
-          data: batchCalls[1].data as `0x${string}`,
-          value: batchCalls[1].value,
-        },
-        {
-          uiOptions: {
-            showWalletUIs: false, // COMPLETELY HIDE WALLET UI
+      let borrowTx;
+      try {
+        borrowTx = await sendTransaction(
+          {
+            to: batchCalls[1].to as `0x${string}`,
+            data: batchCalls[1].data as `0x${string}`,
+            value: batchCalls[1].value,
+          },
+          {
+            uiOptions: {
+              showWalletUIs: false, // COMPLETELY HIDE WALLET UI
+            }
           }
+        );
+      } catch (borrowError) {
+        console.error('❌ BORROW TRANSACTION FAILED:', borrowError);
+        
+        // Detailed error analysis
+        const errorDetails = {
+          invoiceId,
+          amount,
+          errorMessage: borrowError instanceof Error ? borrowError.message : 'Unknown error',
+          errorType: borrowError instanceof Error ? borrowError.name : 'Unknown',
+          timestamp: new Date().toLocaleString(),
+          transactionData: {
+            to: batchCalls[1].to,
+            data: batchCalls[1].data,
+            value: batchCalls[1].value,
+            decodedAmount: (Number(amount) * 1e18).toString(),
+            userAddress
+          },
+          contractState: {
+            lendingPoolAddress: batchCalls[1].to,
+            invoiceNFTAddress: batchCalls[0].to,
+            network: 'Citrea Testnet'
+          }
+        };
+        
+        console.error('🔍 Detailed borrow failure analysis:', errorDetails);
+        
+        // Show user-friendly error
+        let userMessage = 'Borrowing failed. ';
+        if (borrowError instanceof Error) {
+          if (borrowError.message.includes('insufficient')) {
+            userMessage += 'Insufficient funds or borrowing capacity.';
+          } else if (borrowError.message.includes('reverted')) {
+            userMessage += 'Transaction reverted. Please check your invoice and try again.';
+          } else {
+            userMessage += borrowError.message;
+          }
+        } else {
+          userMessage += 'Please try again.';
         }
-      );
+        
+        throw new Error(userMessage);
+      }
 
       console.log('✅ Borrow completed silently:', borrowTx.hash);
       results.push(borrowTx);
@@ -515,11 +604,23 @@ export function useOneClickBorrow(wallets?: any[]) {
         {
           autoClose: 8000,
           onClick: () => {
-            window.open(`https://sepolia.etherscan.io/tx/${borrowTx.hash}`, '_blank');
+            window.open(`https://explorer.testnet.citrea.xyz/tx/${borrowTx.hash}`, '_blank');
           }
         }
       );
 
+      // Show additional success information
+      toast.success(
+        `💡 Borrowing Tips:
+        • Your USDC has been transferred to your wallet
+        • The invoice NFT is now held as collateral
+        • You can repay anytime before the due date
+        • Interest will accrue daily`,
+        { autoClose: 12000 }
+      );
+
+      setIsExecuting(false);
+      
       return {
         success: true,
         approvalHash: approvalTx.hash,
@@ -529,6 +630,7 @@ export function useOneClickBorrow(wallets?: any[]) {
 
     } catch (error) {
       console.error('❌ Seamless borrowing failed:', error);
+      setIsExecuting(false);
       
               // Log detailed error analysis
         const now = new Date();
@@ -546,39 +648,16 @@ export function useOneClickBorrow(wallets?: any[]) {
           toast.warn('Seamless borrowing cancelled');
         } else if (error.message.includes('insufficient funds')) {
           toast.error('Insufficient funds for borrowing');
-        } else if (error.message.includes('execution reverted')) {
-          // Enhanced error analysis based on contract error types
-          let specificCause = 'Unknown contract validation failure';
-          let solutions = '🔄 Try these solutions: 1) Refresh page and check invoice status 2) Try a different invoice 3) Wait 30+ seconds and retry';
-          
-          if (error.message.includes('LoanAlreadyExists')) {
-            specificCause = `Invoice ${invoiceId} already has an active loan`;
-            solutions = '🔄 Try borrowing against a different invoice, or repay the existing loan first';
-          } else if (error.message.includes('InvalidBorrowAmount')) {
-            specificCause = `Borrow amount (${amount} USDC) exceeds the maximum allowed`;
-            solutions = '🔄 Try borrowing a smaller amount (e.g., 500 USDC or less)';
-          } else if (error.message.includes('InvoiceExpired')) {
-            specificCause = `Invoice ${invoiceId} has expired`;
-            solutions = '🔄 Try using a different invoice that hasn\'t expired';
-          } else if (error.message.includes('InvoiceNotVerified')) {
-            specificCause = `Invoice ${invoiceId} is not verified`;
-            solutions = '🔄 Wait for invoice verification or try a verified invoice';
-          } else if (error.message.includes('NotInvoiceSupplier')) {
-            specificCause = `You don't own invoice ${invoiceId}`;
-            solutions = '🔄 Only the invoice owner can borrow against it. Check your invoices list';
-          }
-          
+        } else if (error.message.includes('vd') || error.message.includes('execution reverted')) {
           toast.error(
-            `❌ Borrow transaction failed! 
-            🎯 Specific cause: ${specificCause}
-            
-            💡 Other possible causes:
-            • NFT approval still pending (wait 30+ seconds and retry)
-            • Network congestion on Citrea testnet
-            
-            🔍 Debug: Check console for detailed error info
-            ${solutions}`,
-            { autoClose: 20000 }
+            `❌ Borrowing transaction failed! 
+            💡 Possible causes:
+            • Insufficient USDC balance
+            • Invoice not verified
+            • Contract validation failed
+            🏠 Try: Go to Home page → Claim more tokens
+            🔄 Or use traditional borrowing method below`,
+            { autoClose: 12000 }
           );
         } else {
           toast.error(`Seamless borrowing failed: ${error.message}`);

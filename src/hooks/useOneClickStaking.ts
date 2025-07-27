@@ -115,30 +115,11 @@ export function useOneClickStaking(wallets?: any[]) {
       console.log('✅ Staking completed silently:', stakingTx.hash);
       results.push(stakingTx);
 
-      // Success feedback with all details
+      // Success feedback - removed the detailed toast as requested
       toast.success(
-        `🎉 SEAMLESS STAKING COMPLETED! 
-        📊 Amount: ${summary.amount}
-        ⏰ Duration: ${summary.duration}
-        🔗 Approval: ${approvalTx.hash.slice(0, 8)}...
-        🔗 Staking: ${stakingTx.hash.slice(0, 8)}...
-        ✨ Zero user interaction required!`,
+        `✅ Staking completed successfully!`,
         { 
-          autoClose: 10000,
-          onClick: () => {
-            window.open(`https://sepolia.etherscan.io/tx/${stakingTx.hash}`, '_blank');
-          }
-        }
-      );
-
-      // Also show a separate toast for easier clicking
-      toast.info(
-        `🔍 View on Explorer: ${stakingTx.hash.slice(0, 12)}...`,
-        {
-          autoClose: 8000,
-          onClick: () => {
-            window.open(`https://sepolia.etherscan.io/tx/${stakingTx.hash}`, '_blank');
-          }
+          autoClose: 3000
         }
       );
 

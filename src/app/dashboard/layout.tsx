@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { toast } from 'react-toastify';
+import { useTokenBalance } from '@/hooks/useTokenBalance';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -22,6 +23,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
   const address = privyWallet?.address;
   const [copied, setCopied] = useState(false);
+  
+  // Token balance for navbar
+  const { getFormattedBalance } = useTokenBalance();
 
   // Derive role from pathname
   const role = pathname && pathname.includes('/dashboard/supplier') ? 'supplier' 
@@ -75,6 +79,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const supplierNavItems = [
+    { name: 'Dashboard', href: '/dashboard/supplier' },
     { name: 'Staking', href: '/dashboard/supplier/staking' },
     { name: 'Invoice', href: '/dashboard/supplier/invoice' },
     { name: 'Borrow', href: '/dashboard/supplier/borrow' },
@@ -138,6 +143,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     >
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
+                  </div>
+                  <div className="flex items-center gap-2 bg-green-100 px-3 py-1 rounded-md">
+                    <span className="text-xs font-medium text-green-700">CBTC:</span>
+                    <span className="font-mono text-xs text-green-700">{getFormattedBalance('eth')}</span>
                   </div>
                   <button
                     onClick={handleLogout}

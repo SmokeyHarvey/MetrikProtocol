@@ -25,7 +25,7 @@ export function LPDepositHistory() {
             </span>
             <span className="text-xs text-gray-500 font-medium">Total Deposited</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">{animatedStats.totalDeposited} <span className="text-base font-medium text-gray-500">USDC</span></span>
+          <span className="text-2xl font-bold text-gray-900">{Number(animatedStats.totalDeposited).toFixed(2)} <span className="text-base font-medium text-gray-500">USDC</span></span>
         </div>
         <div className="bg-white rounded-lg shadow p-4 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-1">
@@ -34,7 +34,7 @@ export function LPDepositHistory() {
             </span>
             <span className="text-xs text-gray-500 font-medium">Total Withdrawn</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">{animatedStats.totalWithdrawn} <span className="text-base font-medium text-gray-500">USDC</span></span>
+          <span className="text-2xl font-bold text-gray-900">{Number(animatedStats.totalWithdrawn).toFixed(2)} <span className="text-base font-medium text-gray-500">USDC</span></span>
         </div>
         <div className="bg-white rounded-lg shadow p-4 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-1">
@@ -43,7 +43,7 @@ export function LPDepositHistory() {
             </span>
             <span className="text-xs text-gray-500 font-medium">Total Interest</span>
           </div>
-          <span className="text-2xl font-bold text-gray-900">{animatedStats.totalInterest} <span className="text-base font-medium text-gray-500">USDC</span></span>
+          <span className="text-2xl font-bold text-gray-900">{Number(animatedStats.totalInterest).toFixed(2)} <span className="text-base font-medium text-gray-500">USDC</span></span>
         </div>
         <div className="bg-white rounded-lg shadow p-4 flex flex-col items-center">
           <div className="flex items-center gap-2 mb-1">

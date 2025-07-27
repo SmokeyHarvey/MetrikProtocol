@@ -6,6 +6,8 @@ export async function POST(request: NextRequest) {
   try {
     const { invoiceId, amount, userAddress } = await request.json();
 
+    console.log('📥 Backend received:', { invoiceId, amount, userAddress, amountType: typeof amount });
+
     if (!invoiceId || !amount || !userAddress) {
       return NextResponse.json(
         { error: 'Missing required parameters: invoiceId, amount, userAddress' },
@@ -15,6 +17,7 @@ export async function POST(request: NextRequest) {
 
     // Convert values to proper types
     const tokenId = BigInt(invoiceId);
+    // The contract expects amounts in 6 decimal format (USDC format)
     const borrowAmount = BigInt(Math.floor(parseFloat(amount) * 1e6)); // USDC has 6 decimals
 
     console.log('🔄 Preparing batch borrow transaction for:', {
@@ -49,15 +52,15 @@ export async function POST(request: NextRequest) {
         {
           inputs: [
             { name: 'tokenId', type: 'uint256' },
-            { name: 'amount', type: 'uint256' }
+            { name: 'borrowAmount', type: 'uint256' }
           ],
-          name: 'borrow',
+          name: 'depositInvoiceAndBorrow',
           outputs: [],
           stateMutability: 'nonpayable',
           type: 'function'
         }
       ],
-      functionName: 'borrow',
+      functionName: 'depositInvoiceAndBorrow',
       args: [tokenId, borrowAmount],
     });
 
@@ -93,7 +96,15 @@ export async function POST(request: NextRequest) {
         steps: [
           'Approve Invoice NFT for LendingPool contract',
           'Borrow USDC against invoice collateral'
-        ]
+        ],
+        benefits: [
+          'Zero wallet prompts required',
+          'Automatic NFT approval handling',
+          'Instant USDC transfer to wallet',
+          'Invoice NFT held as collateral'
+        ],
+        estimatedTime: '30-60 seconds',
+        network: 'Citrea Testnet'
       }
     });
 

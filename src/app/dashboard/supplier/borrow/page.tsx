@@ -174,13 +174,10 @@ const isInputValid = !isNaN(inputAmount) && inputAmount > 0 && inputAmountInUSDC
     }
   }, [isDev, fetchInvoices]);
 
-  // Only show invoices created by the current Privy wallet (supplier)
-  const supplierInvoices = isAddressReady && invoices.length > 0
-    ? invoices.filter(inv => inv.supplier?.toLowerCase() === address.toLowerCase())
+  // Show only verified invoices that the current user owns
+  const borrowableInvoices = isAddressReady && invoices.length > 0
+    ? invoices.filter(inv => inv.isVerified && inv.supplier?.toLowerCase() === address.toLowerCase())
     : [];
-
-  // All invoices on contract (do not filter by supplier)
-  const allContractInvoices = invoices || [];
 
   // Render logic
   if (!ready) return <div>Loading Privy...</div>;
@@ -198,7 +195,7 @@ const isInputValid = !isNaN(inputAmount) && inputAmount > 0 && inputAmountInUSDC
     <div className="flex flex-col items-center justify-center">
       <div className="w-full max-w-full">
         {/* Borrow stats and history UI */}
-        <BorrowInterface invoices={supplierInvoices} />
+        <BorrowInterface invoices={borrowableInvoices} />
       </div>
     </div>
   );

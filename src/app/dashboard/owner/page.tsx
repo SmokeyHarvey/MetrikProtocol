@@ -212,7 +212,7 @@ export default function OwnerDashboard() {
                               #{invoice.invoiceId}
                             </TableCell>
                             <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
-                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono text-sm">
                               {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
                             </TableCell>
@@ -277,7 +277,7 @@ export default function OwnerDashboard() {
                               #{invoice.invoiceId}
                             </TableCell>
                             <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
-                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono text-sm">
                               {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
                             </TableCell>

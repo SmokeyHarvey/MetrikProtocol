@@ -31,8 +31,23 @@ export function InvoiceInterface() {
     verifyInvoice,
     getInvoiceDetails,
     fetchInvoices,
-    userInvoices
-  } = useInvoiceNFT(address);
+    userInvoices,
+    fetchUserInvoices
+  } = useInvoiceNFT(address as `0x${string}`);
+
+  // Debug userInvoices state
+  React.useEffect(() => {
+    console.log('🔍 InvoiceInterface userInvoices state:', userInvoices);
+    console.log('🔍 InvoiceInterface userInvoices length:', userInvoices?.length || 0);
+    if (userInvoices && userInvoices.length > 0) {
+      console.log('🔍 InvoiceInterface userInvoices details:', userInvoices.map(inv => ({
+        id: inv.id,
+        invoiceId: inv.invoiceId,
+        supplier: inv.supplier,
+        isVerified: inv.isVerified
+      })));
+    }
+  }, [userInvoices]);
 
   // Helper to generate a unique invoice ID
   function generateInvoiceId(addr?: string) {
@@ -42,16 +57,23 @@ export function InvoiceInterface() {
     return `INV-${short}-${rand}`;
   }
 
-  // Initialize form with automated fields
+  // Initialize form with automated fields and fetch user invoices
   React.useEffect(() => {
+    console.log('🔍 InvoiceInterface useEffect - address:', address);
     if (address) {
       setNewInvoice((prev) => ({
         ...prev,
         supplier: address,
         uniqueId: generateInvoiceId(address),
       }));
+      
+      // Fetch user invoices when component loads
+      console.log('🔍 InvoiceInterface calling fetchUserInvoices with address:', address);
+      fetchUserInvoices(address as `0x${string}`);
+    } else {
+      console.log('🔍 InvoiceInterface useEffect - no address available');
     }
-  }, [address]);
+  }, [address, fetchUserInvoices]);
 
   const [newInvoice, setNewInvoice] = useState({
     supplier: '',
@@ -64,6 +86,7 @@ export function InvoiceInterface() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [invoiceTxHash, setInvoiceTxHash] = useState<string>('');
 
   // One-click invoice creation handler
   const handleOneClickCreateInvoice = async (e: React.FormEvent) => {
@@ -103,15 +126,8 @@ export function InvoiceInterface() {
           metadata: '',
         });
         
-        // Show success message with transaction details
-        toast.success(`🎉 One-click invoice creation completed successfully!`, {
-          autoClose: 8000,
-          onClick: () => {
-            if (result.mintHash) {
-              window.open(`https://sepolia.etherscan.io/tx/${result.mintHash}`, '_blank');
-            }
-          }
-        });
+        // Store transaction hash for success modal
+        setInvoiceTxHash(result.mintHash || '');
       }
     } catch (error) {
       console.error('❌ One-click invoice creation error:', error);
@@ -126,7 +142,7 @@ export function InvoiceInterface() {
       toast.success('Invoice verified successfully!');
       // Refresh invoices
       if (address) {
-        await fetchInvoices(address);
+        await fetchInvoices(address as `0x${string}`);
       }
     } catch (err) {
       console.error('Error verifying invoice:', err);
@@ -171,14 +187,14 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                {invoices ? invoices.length : 0}
+                {invoices ? invoices.filter(inv => inv.supplier === address).length : 0}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              All time invoices created
+              Your invoices created
             </p>
           </CardContent>
         </Card>
@@ -191,14 +207,14 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                ${invoices ? invoices.reduce((sum, inv) => sum + (Number(inv.creditAmount) / 1e6), 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'}
+                ${invoices ? invoices.filter(inv => inv.supplier === address).reduce((sum, inv) => sum + (Number(inv.creditAmount) / 1e6), 0).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0.00'}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Combined invoice value
+              Your invoice value
             </p>
           </CardContent>
         </Card>
@@ -211,14 +227,14 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                {invoices ? invoices.filter(inv => inv.isVerified).length : 0}
+                {invoices ? invoices.filter(inv => inv.supplier === address && inv.isVerified).length : 0}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Successfully verified
+              Your verified invoices
             </p>
           </CardContent>
         </Card>
@@ -231,14 +247,14 @@ export function InvoiceInterface() {
           <CardContent>
             <div className="flex items-center">
               <div className="text-2xl font-bold">
-                {invoices ? invoices.filter(inv => !inv.isVerified).length : 0}
+                {invoices ? invoices.filter(inv => inv.supplier === address && !inv.isVerified).length : 0}
               </div>
               {isLoading && (
                 <div className="ml-2 w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Awaiting verification
+              Your pending invoices
             </p>
           </CardContent>
         </Card>
@@ -247,7 +263,6 @@ export function InvoiceInterface() {
       <Tabs defaultValue="create" className="space-y-4">
         <TabsList>
           <TabsTrigger value="create">Create Invoice NFT</TabsTrigger>
-          <TabsTrigger value="all-invoices">All Invoices</TabsTrigger>
           <TabsTrigger value="your-invoices">Your Invoices</TabsTrigger>
         </TabsList>
 
@@ -423,67 +438,7 @@ export function InvoiceInterface() {
           </Card>
         </TabsContent>
 
-        {/* All Invoices Tab */}
-        <TabsContent value="all-invoices" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Invoices</CardTitle>
-              <CardDescription>
-                View and manage all invoice NFTs
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice ID</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pay</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices && invoices.length > 0 ? (
-                    invoices.map((invoice) => {
-                      // Constants for EIP-681
-                      const USDC_ADDRESS = '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // Mainnet USDC, replace as needed
-                      const CHAIN_ID = 1; // Mainnet, replace as needed
-                      const eip681 = generateEIP681URI({
-                        tokenAddress: USDC_ADDRESS,
-                        recipient: invoice.supplier,
-                        amount: invoice.creditAmount,
-                        decimals: 6,
-                        chainId: CHAIN_ID,
-                      });
-                      return (
-                        <TableRow key={invoice.id}>
-                          <TableCell>{invoice.invoiceId}</TableCell>
-                          <TableCell>{invoice.supplier}</TableCell>
-                          <TableCell>{(Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
-                          <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
-                          <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col items-center gap-2">
-                              <a href={eip681} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline text-xs">Pay with Wallet</a>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-gray-500">
-                        No invoices found.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
 
         {/* Your Invoices Tab */}
         <TabsContent value="your-invoices" className="space-y-4">
@@ -507,8 +462,8 @@ export function InvoiceInterface() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userInvoices && userInvoices.length > 0 ? (
-                    userInvoices.map((invoice) => {
+                  {invoices && invoices.filter(inv => inv.supplier === address).length > 0 ? (
+                    invoices.filter(inv => inv.supplier === address).map((invoice) => {
                       // Constants for EIP-681
                       const USDC_ADDRESS = '0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'; // Mainnet USDC, replace as needed
                       const CHAIN_ID = 1; // Mainnet, replace as needed
@@ -524,7 +479,7 @@ export function InvoiceInterface() {
                           <TableCell>{invoice.invoiceId}</TableCell>
                           <TableCell>{invoice.supplier}</TableCell>
                           <TableCell>{(Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</TableCell>
-                          <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate) * 1000).toLocaleDateString() : 'N/A'}</TableCell>
+                          <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(invoice.isVerified)}</TableCell>
                           <TableCell>
                             <div className="flex flex-col items-center gap-2">
@@ -547,6 +502,80 @@ export function InvoiceInterface() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Centered Invoice Loader */}
+      {isExecuting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ⚡ Seamless Invoice Creation
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Please wait while we create your invoice NFT...
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Processing invoice creation...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Success Modal */}
+      {invoiceTxHash && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ✅ Seamless Invoice Creation Completed!
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Your invoice NFT has been created successfully.
+                </p>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-600 mb-1">Transaction Hash:</p>
+                  <p className="text-xs font-mono text-gray-800 break-all">
+                    {invoiceTxHash}
+                  </p>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    onClick={() => {
+                      window.open(`https://explorer.testnet.citrea.xyz/tx/${invoiceTxHash}`, '_blank');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                    size="sm"
+                  >
+                    🔍 View on Explorer
+                  </Button>
+                  <Button
+                    onClick={() => setInvoiceTxHash('')}
+                    className="bg-gray-600 hover:bg-gray-700 text-white text-sm"
+                    size="sm"
+                  >
+                    ✕ Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

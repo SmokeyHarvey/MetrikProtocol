@@ -4,25 +4,16 @@ import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useState, useEffect } from 'react';
-import { BrowserProvider, Contract, parseUnits } from "ethers";
-import metrikAbi from "@/lib/contracts/abis/MockERC20.json";
-import usdcAbi from "@/lib/contracts/abis/MockERC20.json";
-import faucetAbi from "@/lib/contracts/abis/Faucet.json";
 import { SupplierLoginButton } from '../components/borrow/SupplierLoginButton';
 import { usePrivy } from '@privy-io/react-auth';
 
-const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
-const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
+
 
 export default function Home() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
   const { authenticated, logout, user, ready } = usePrivy();
   const [selectedRole, setSelectedRole] = useState<'supplier' | 'lp' | 'verifier' | null>(null);
-  const [metrikAmount, setMetrikAmount] = useState("");
-  const [usdcAmount, setUsdcAmount] = useState("");
-  const [faucetLoading, setFaucetLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   const handleRoleSelect = (role: 'supplier' | 'lp' | 'verifier') => {
@@ -63,9 +54,9 @@ export default function Home() {
 
   useEffect(() => {
     if (authenticated && selectedRole === 'supplier' && !isRedirecting) {
-      console.log('Redirecting to staking page - authenticated:', authenticated, 'selectedRole:', selectedRole);
+      console.log('Redirecting to supplier dashboard - authenticated:', authenticated, 'selectedRole:', selectedRole);
       setIsRedirecting(true);
-      router.push('/dashboard/supplier/staking');
+      router.push('/dashboard/supplier');
       if (typeof window !== 'undefined') {
         localStorage.removeItem('selectedRole');
       }
@@ -115,34 +106,7 @@ export default function Home() {
     });
   }, [authenticated, selectedRole, isConnected, user]);
 
-  async function claimToken(token: "metrik" | "usdc") {
-    if (!window.ethereum || !address) {
-      alert("Connect your wallet first.");
-      return;
-    }
-    setFaucetLoading(true);
-    try {
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
-      const tokenAddress = token === "metrik" ? METRIK_ADDRESS : USDC_ADDRESS;
-      const amountStr = token === "metrik" ? metrikAmount : usdcAmount;
-      if (!amountStr || isNaN(Number(amountStr)) || Number(amountStr) <= 0) {
-        alert("Enter a valid amount");
-        setFaucetLoading(false);
-        return;
-      }
-      const decimals = token === "metrik" ? 18 : 6;
-      const amount = parseUnits(amountStr, decimals);
-      const tx = await faucet.claim(tokenAddress, amount);
-      await tx.wait();
-      alert(`${token.toUpperCase()} claimed from faucet!`);
-    } catch (err: any) {
-      alert(err.message || "Claim failed");
-    } finally {
-      setFaucetLoading(false);
-    }
-  }
+
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-gray-100">
@@ -204,7 +168,7 @@ export default function Home() {
               <button
                 onClick={() => {
                   setIsRedirecting(true);
-                  router.push('/dashboard/supplier/staking');
+                  router.push('/dashboard/supplier');
                 }}
                 className="px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md text-sm font-medium transition-colors"
               >
@@ -292,51 +256,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Faucet Section */}
-            <div className="mt-8 border-t pt-6">
-              <h2 className="text-xl font-semibold mb-4">Faucet: Mint Test Tokens</h2>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <div className="flex flex-col items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="Amount of Metrik"
-                    value={metrikAmount}
-                    onChange={e => setMetrikAmount(e.target.value)}
-                    className="border rounded px-3 py-2 mb-2 w-40"
-                    disabled={faucetLoading}
-                  />
-                  <button
-                    onClick={() => claimToken("metrik")}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-                    disabled={faucetLoading || !isConnected}
-                  >
-                    Mint Metrik
-                  </button>
-                </div>
-                <div className="flex flex-col items-center">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="Amount of USDC"
-                    value={usdcAmount}
-                    onChange={e => setUsdcAmount(e.target.value)}
-                    className="border rounded px-3 py-2 mb-2 w-40"
-                    disabled={faucetLoading}
-                  />
-                  <button
-                    onClick={() => claimToken("usdc")}
-                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-                    disabled={faucetLoading || !isConnected}
-                  >
-                    Mint USDC
-                  </button>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">You can mint any amount of test tokens to your wallet.</p>
-            </div>
+
           </div>
         </div>
       </div>
