@@ -4,6 +4,9 @@ import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { parseAmount, formatAmount } from '@/lib/utils/contracts';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets, useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
+import { useSeamlessTransaction } from './useSeamlessTransaction';
 
 export interface Loan {
   invoiceId: string;
@@ -26,11 +29,18 @@ export interface BorrowStats {
   totalRepaid: number;
 }
 
-export function useBorrow() {
+export function useBorrow(addressOverride?: string) {
   const { contract: lendingPoolContract } = useContract('lendingPool');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
+  const { executeBatchTransactions } = useSeamlessTransaction();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const isPrivy = !!(addressOverride || privyWallet?.address);
+  const address = addressOverride || privyWallet?.address || wagmiAddress;
+  const readClient = publicClient;
 
   const [userLoans, setUserLoans] = useState<Loan[]>([]); // All loans (history)
   const [activeLoans, setActiveLoans] = useState<Loan[]>([]); // Only active loans
@@ -48,7 +58,7 @@ export function useBorrow() {
   
   // New state for borrowing capacity and safe lending amount
   const [borrowingCapacity, setBorrowingCapacity] = useState<string>('0');
-  const [safeLendingAmount, setSafeLendingAmount] = useState<string>('0');
+  const [safeLendingAmount, setSafeLendingAmount] = useState<string>('0'); // New state for safe lending amount
 
   // Animated values for smooth UI updates
   const animatedStats = {
@@ -62,63 +72,74 @@ export function useBorrow() {
 
   // New function to get borrowing capacity
   const getBorrowingCapacity = useCallback(async (userAddress?: string): Promise<string> => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+      setError('Borrowing capacity: missing address or contract.');
       return '0';
     }
 
     try {
-      const capacity = await publicClient.readContract({
+      const capacity = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getBorrowingCapacity',
         args: [userAddress || address || '0x0'],
-      });
-      // If the raw value is 7500, do not divide by 1e6
-      if (typeof capacity === 'object' && capacity !== null && 'toString' in capacity && typeof capacity.toString === 'function') {
-        return capacity.toString();
-      }
-      return String(capacity);
+      }) as bigint;
+      
+      console.log('🔍 Raw borrowing capacity from contract:', capacity);
+      // Format with 6 decimals for USDC
+      const formattedCapacity = formatAmount(capacity, 6);
+      console.log('🔍 Formatted borrowing capacity:', formattedCapacity);
+      
+      return formattedCapacity;
     } catch (err) {
       console.error('Error fetching borrowing capacity:', err);
       return '0';
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
 
   // New function to get system-wide safe lending amount
   const getSystemWideSafeLendingAmount = useCallback(async (): Promise<string> => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+      console.error('Safe lending amount: missing contract.');
       return '0';
     }
+
     try {
-      const safeAmount = await publicClient.readContract({
+      console.log('🔍 Fetching system-wide safe lending amount from contract...');
+      
+      const safeAmount = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getSystemWideSafeLendingAmount',
-        args: [],
       });
-      // USDC has 6 decimals
-      return (Number(safeAmount) / 1e6).toString();
+      
+      console.log('🔍 Raw safe lending amount from contract:', safeAmount);
+      const formattedAmount = formatAmount(safeAmount as bigint, 6); // USDC has 6 decimals
+      console.log('🔍 Formatted safe lending amount:', formattedAmount);
+      
+      return formattedAmount;
     } catch (err) {
       console.error('Error fetching system-wide safe lending amount:', err);
       return '0';
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi]);
 
   // Fetch system-wide safe lending amount on mount
   useEffect(() => {
     (async () => {
       const safeAmount = await getSystemWideSafeLendingAmount();
-      setSafeLendingAmount(safeAmount);
+      setSafeLendingAmount(safeAmount); // This state variable was removed
     })();
   }, [getSystemWideSafeLendingAmount]);
 
   // Fetch all user loan IDs (history)
   const getAllUserLoans = useCallback(async (): Promise<Loan[]> => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+      setError('User loans: missing address or contract.');
       return [];
     }
     try {
-      const loanIds = await publicClient.readContract({
+      const loanIds = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserLoans',
@@ -129,7 +150,7 @@ export function useBorrow() {
         loanIds.map(async (id) => {
           try {
             // Use the raw loans(id) function instead of getUserLoanDetails
-            const details = await publicClient.readContract({
+            const details = await readClient.readContract({
               address: lendingPoolContract.address,
               abi: lendingPoolContract.abi,
               functionName: 'loans',
@@ -166,15 +187,16 @@ export function useBorrow() {
     } catch (err) {
       return [];
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
 
   // Fetch only active user loan IDs
   const getActiveUserLoans = useCallback(async (): Promise<Loan[]> => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+      setError('Active user loans: missing address or contract.');
       return [];
     }
     try {
-      const loanIds = await publicClient.readContract({
+      const loanIds = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserActiveLoans',
@@ -184,7 +206,7 @@ export function useBorrow() {
       const loanResults = await Promise.all(
         loanIds.map(async (id) => {
           try {
-            const details = await publicClient.readContract({
+            const details = await readClient.readContract({
               address: lendingPoolContract.address,
               abi: lendingPoolContract.abi,
               functionName: 'getUserLoanDetails',
@@ -223,14 +245,15 @@ export function useBorrow() {
     } catch (err) {
       return [];
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
 
   const getUserLoansRaw = useCallback(async (userAddress?: string) => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+      setError('User loans raw: missing address or contract.');
       return [];
     }
     try {
-      const ids = await publicClient.readContract({
+      const ids = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserLoans',
@@ -241,15 +264,16 @@ export function useBorrow() {
       console.error('DEBUG getUserLoansRaw error:', err);
       return [];
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi, address]);
 
   const getLoanByIdRaw = useCallback(async (loanId: bigint | number | string) => {
-    if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+    if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+      setError('Loan by ID: missing address or contract.');
       return null;
     }
     try {
       const id = typeof loanId === 'bigint' ? loanId : BigInt(loanId);
-      const details = await publicClient.readContract({
+      const details = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'loans',
@@ -260,10 +284,13 @@ export function useBorrow() {
       console.error('DEBUG getLoanByIdRaw error for', loanId, err);
       return null;
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi]);
 
   const fetchUserLoans = useCallback(async () => {
-    if (!address) return;
+    if (!address) {
+      setError('Fetch user loans: missing address.');
+      return;
+    }
     try {
       setIsLoading(true);
       setError(null);
@@ -287,9 +314,8 @@ export function useBorrow() {
         totalInterest,
         totalRepaid: repaidLoans.reduce((sum, loan) => sum + Number(loan.amount), 0)
       });
-      // Fetch borrowing capacity and safe lending amount
-      const capacity = await getBorrowingCapacity();
-      setBorrowingCapacity(capacity);
+      // Note: Borrowing capacity is now calculated in the component using getMaxBorrowAmount for each invoice
+      // This provides more accurate per-invoice capacity instead of a general LTV percentage
       // The safeLendingAmount is now fetched on mount
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch loans');
@@ -300,23 +326,25 @@ export function useBorrow() {
 
   const getMaxBorrowAmount = useCallback(async (tokenId: string) => {
     try {
-      if (!publicClient || !lendingPoolContract.address || !lendingPoolContract.abi) {
+      if (!readClient || !lendingPoolContract.address || !lendingPoolContract.abi || !address) {
+        setError('Max borrow amount: missing address or contract.');
         return '0';
       }
 
-      const maxBorrow = await publicClient.readContract({
+      const maxBorrow = await readClient.readContract({
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getMaxBorrowAmount',
         args: [BigInt(tokenId)],
       }) as bigint;
 
-      return formatAmount(maxBorrow);
+      // USDC has 6 decimals, not 18
+      return formatAmount(maxBorrow, 6);
     } catch (err) {
       console.error('Error getting max borrow amount:', err);
       return '0';
     }
-  }, [publicClient, lendingPoolContract.address, lendingPoolContract.abi]);
+  }, [readClient, lendingPoolContract.address, lendingPoolContract.abi]);
 
   // Updated borrow function to use depositInvoiceAndBorrow
   const borrow = useCallback(async (tokenId: string, borrowAmount: string) => {
@@ -324,19 +352,48 @@ export function useBorrow() {
       setIsLoading(true);
       setError(null);
 
+      if (isPrivy) {
+        // Use seamless batch transactions for suppliers
+        const parsedAmount = parseAmount(borrowAmount, 6);
+        console.log('Borrow debug:', { tokenId, borrowAmount, parsedAmount });
+
+        // Execute approve and borrow in one seamless batch
+        const transactions = [
+          {
+            to: lendingPoolContract.address,
+            data: encodeFunctionData({
+              abi: lendingPoolContract.abi,
+              functionName: 'approve',
+              args: [lendingPoolContract.address, BigInt(tokenId)],
+            }),
+          },
+          {
+            to: lendingPoolContract.address,
+            data: encodeFunctionData({
+              abi: lendingPoolContract.abi,
+              functionName: 'depositInvoiceAndBorrow',
+              args: [BigInt(tokenId), parsedAmount],
+            }),
+          },
+        ];
+
+        const results = await executeBatchTransactions(transactions, publicClient?.chain.id);
+        toast.success('Borrow successful!');
+        return results[1].hash; // Return the borrow transaction hash
+      }
       if (!walletClient || !address || !publicClient) {
         throw new Error('Wallet client, address, or public client not available.');
       }
 
-      const parsedAmount = parseAmount(borrowAmount);
+      const parsedAmount2 = parseAmount(borrowAmount, 6);
 
       // Use the new depositInvoiceAndBorrow function
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'depositInvoiceAndBorrow',
-        args: [BigInt(tokenId), parsedAmount],
+        args: [BigInt(tokenId), parsedAmount2],
       });
 
       const hash = await walletClient.writeContract(request);
@@ -355,7 +412,7 @@ export function useBorrow() {
     } finally {
       setIsLoading(false);
     }
-  }, [walletClient, address, publicClient, lendingPoolContract.address, lendingPoolContract.abi, fetchUserLoans]);
+  }, [lendingPoolContract, walletClient, address, publicClient, isPrivy, sendTransaction, fetchUserLoans]);
 
   // Effect to fetch data on address change or periodically
   useEffect(() => {
@@ -363,11 +420,15 @@ export function useBorrow() {
       fetchUserLoans();
       
       // Set up polling every 30 seconds
-      const interval = setInterval(fetchUserLoans, 30000);
+      const interval = setInterval(() => {
+        fetchUserLoans();
+      }, 30000);
       
       return () => clearInterval(interval);
+    } else {
+      setError('Effect: missing address, not polling.');
     }
-  }, [address, fetchUserLoans]);
+  }, [address, fetchUserLoans, getBorrowingCapacity]);
 
   return {
     userLoans, // all loans (history)

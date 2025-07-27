@@ -2,7 +2,7 @@
   "_format": "hh-sol-artifact-1",
   "contractName": "LendingPool",
   "sourceName": "contracts/LendingPool.sol",
-  "abi": [
+  "abi":[
     {
       "inputs": [
         {

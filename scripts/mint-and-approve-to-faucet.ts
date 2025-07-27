@@ -8,7 +8,7 @@ const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL!;
 const PRIVATE_KEY = process.env.PRIVATE_KEY_OWNER!;
 const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
-const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
+const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS!;
 
 // Set the amount to mint and approve (as string, e.g., "1000000")
 const METRIK_AMOUNT = "9999000000";

@@ -1,10 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useContract } from './useContract';
 import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
-import { parseAmount, formatAmount } from '@/lib/utils/contracts';
+import { parseAmount } from '@/lib/utils/contracts';
 import { type Address } from 'viem';
 import { toast } from 'react-toastify';
 import { useAnimatedValue } from './useAnimatedValue';
+import { useWallets } from '@privy-io/react-auth';
 
 export interface Invoice {
   id: string;
@@ -35,11 +36,14 @@ export interface InvoiceStats {
   totalValue: string;
 }
 
-export function useInvoice() {
+export function useInvoice(addressOverride?: string) {
   const { contract: invoiceNFTContract } = useContract('invoiceNFT');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { wallets } = useWallets();
+  const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
+  const address = addressOverride || privyWallet?.address || wagmiAddress;
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [userInvoices, setUserInvoices] = useState<Invoice[]>([]);
@@ -111,7 +115,7 @@ export function useInvoice() {
             invoiceId: invoiceDetails.invoiceId,
             supplier: invoiceDetails.supplier,
             buyer: invoiceDetails.buyer,
-            creditAmount: formatAmount(invoiceDetails.creditAmount),
+            creditAmount: invoiceDetails.creditAmount.toString(),
             dueDate: new Date(Number(invoiceDetails.dueDate) * 1000),
             ipfsHash: invoiceDetails.ipfsHash,
             isVerified: invoiceDetails.isVerified
@@ -128,7 +132,7 @@ export function useInvoice() {
         totalInvoices: Number(totalSupply).toString(),
         verifiedInvoices: verifiedCount.toString(),
         pendingInvoices: pendingCount.toString(),
-        totalValue: formatAmount(totalValue),
+        totalValue: totalValue.toString(),
       });
 
       return formattedInvoices;
@@ -183,7 +187,7 @@ export function useInvoice() {
             invoiceId: invoiceDetails.invoiceId,
             supplier: invoiceDetails.supplier,
             buyer: invoiceDetails.buyer,
-            creditAmount: formatAmount(invoiceDetails.creditAmount),
+            creditAmount: invoiceDetails.creditAmount.toString(),
             dueDate: new Date(Number(invoiceDetails.dueDate) * 1000),
             ipfsHash: invoiceDetails.ipfsHash,
             isVerified: invoiceDetails.isVerified
@@ -219,11 +223,11 @@ export function useInvoice() {
         throw new Error('Wallet client, address, or public client not available.');
       }
 
-      const parsedAmount = parseAmount(creditAmount);
+      const parsedAmount = parseAmount(creditAmount, 6);
       const dueDateTimestamp = BigInt(Math.floor(dueDate.getTime() / 1000));
 
       const { request } = await publicClient.simulateContract({
-        account: address,
+        account: address as `0x${string}`,
         address: invoiceNFTContract.address,
         abi: invoiceNFTContract.abi,
         functionName: 'mintInvoiceNFT',
@@ -235,7 +239,7 @@ export function useInvoice() {
 
       // Refresh invoices list
       if (address) {
-        await fetchUserInvoices(address);
+        await fetchUserInvoices(address as `0x${string}`);
         await fetchAllInvoices();
       }
 
@@ -270,7 +274,7 @@ export function useInvoice() {
           invoiceId: result.invoiceId,
           supplier: result.supplier,
           buyer: result.buyer,
-          creditAmount: formatAmount(result.creditAmount),
+          creditAmount: result.creditAmount.toString(),
           dueDate: new Date(Number(result.dueDate) * 1000),
           ipfsHash: result.ipfsHash,
           isVerified: result.isVerified
@@ -307,11 +311,11 @@ export function useInvoice() {
   useEffect(() => {
     if (address) {
       fetchAllInvoices();
-      fetchUserInvoices(address);
+      fetchUserInvoices(address as `0x${string}`);
 
       const interval = setInterval(() => {
         fetchAllInvoices();
-        fetchUserInvoices(address);
+        fetchUserInvoices(address as `0x${string}`);
       }, 30000); // Refetch every 30 seconds
 
       return () => clearInterval(interval);
@@ -330,7 +334,7 @@ export function useInvoice() {
     refetch: () => {
       if (address) {
         fetchAllInvoices();
-        fetchUserInvoices(address);
+        fetchUserInvoices(address as `0x${string}`);
       }
     },
     // Animated values for smooth UI updates

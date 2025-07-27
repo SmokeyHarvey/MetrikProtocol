@@ -6,12 +6,17 @@ import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { BrowserProvider, Contract, parseUnits } from "ethers";
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
+import { useTokenBalance } from '@/hooks/useTokenBalance';
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_STABLECOIN_ADDRESS!;
-const FAUCET_ADDRESS = "0x2301Fccc9a7d26fCFcd281F823e0bE0dB8a18622";
+const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS!;
+
+console.log('🔍 LP Deposit Page - USDC Address from env:', USDC_ADDRESS);
+console.log('🔍 LP Deposit Page - FAUCET Address from env:', FAUCET_ADDRESS);
 
 export default function LPDepositPage() {
   const { address, isConnected } = useAccount();
+  const { refreshBalances, refetchUsdcBalance } = useTokenBalance();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,7 +27,7 @@ export default function LPDepositPage() {
     }
     setLoading(true);
     try {
-      const provider = new BrowserProvider(window.ethereum);
+      const provider = new BrowserProvider(window.ethereum as unknown as any);
       const signer = await provider.getSigner();
       const faucet = new Contract(FAUCET_ADDRESS, faucetAbi, signer);
       if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
@@ -35,6 +40,14 @@ export default function LPDepositPage() {
       const tx = await faucet.claim(USDC_ADDRESS, amt);
       await tx.wait();
       alert(`Minted ${amount} USDC to your wallet!`);
+      
+      // Refresh balances after successful mint
+      setTimeout(() => {
+        console.log('🔄 Calling refreshBalances after mint...');
+        refreshBalances();
+        console.log('🔄 Calling refetchUsdcBalance after mint...');
+        refetchUsdcBalance();
+      }, 2000); // Wait 2 seconds for blockchain to update
     } catch (err: unknown) {
       alert((err as Error).message || "Mint failed");
     } finally {
@@ -68,6 +81,26 @@ export default function LPDepositPage() {
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2">You can mint any amount of USDC tokens to your wallet.</p>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={() => {
+              console.log('🔄 Manual refreshBalances clicked');
+              refreshBalances();
+            }}
+            className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
+          >
+            Refresh Balance (Manual)
+          </button>
+          <button
+            onClick={() => {
+              console.log('🔄 Manual refetchUsdcBalance clicked');
+              refetchUsdcBalance();
+            }}
+            className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
+          >
+            Refresh USDC (Wagmi)
+          </button>
+        </div>
       </div>
     </div>
   );

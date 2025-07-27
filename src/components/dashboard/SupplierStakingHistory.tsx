@@ -10,9 +10,7 @@ export function SupplierStakingHistory() {
   const { 
     activeStakes, 
     stakeHistory, 
-    animatedStakeUsage,
     isLoading, 
-    error 
   } = useStakingHistory();
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
@@ -124,7 +122,6 @@ export function SupplierStakingHistory() {
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 uppercase">Amount</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 uppercase">Start Date</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 uppercase">Duration</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 uppercase">Used for Borrow</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
@@ -133,7 +130,6 @@ export function SupplierStakingHistory() {
                         <td className="px-4 py-2 font-mono font-medium">{stake.amount.toLocaleString()}</td>
                         <td className="px-4 py-2">{stake.startTime.toLocaleString()}</td>
                         <td className="px-4 py-2">{Math.floor(Number(stake.duration) / (24 * 60 * 60))} days</td>
-                        <td className="px-4 py-2 font-mono">{stake.usedForBorrow.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

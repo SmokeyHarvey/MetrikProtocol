@@ -1,76 +1,422 @@
 'use client';
 
-import { useState } from 'react';
-import { formatUnits } from 'viem';
+import { useState, useEffect, useRef } from 'react';
+import { useWallets, useCreateWallet, usePrivy } from '@privy-io/react-auth';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useStaking } from '@/hooks/useStaking';
+import { useOneClickStaking } from '@/hooks/useOneClickStaking';
+import { toast } from 'react-toastify';
+import { keccak256, toUtf8Bytes } from 'ethers';
+import Link from 'next/link';
 
 export function StakingInterface() {
+  const { wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+  const { authenticated, ready } = usePrivy();
+  
+  // Find Privy embedded wallet
+  const privyWallet = wallets.find(w => 
+    w.walletClientType === 'privy' || 
+    (w.meta && w.meta.id === 'io.privy.wallet') ||
+    w.connectorType === 'embedded'
+  );
+  const address = privyWallet?.address;
+  
   const {
-    stake,
     unstake,
-    getTier,
-    getStakedAmount,
     getActiveStakes,
-    getStakeUsage,
     currentTier,
     stakeDuration,
     isLoading,
     error,
     animatedStakedAmount,
-    animatedRewards,
     animatedMetrikBalance,
-    // New state from updated hook
-    activeStakes,
-    stakeUsage,
-    totalStakedAmount,
-  } = useStaking();
+  } = useStaking(address);
+  
+  // One-click staking hook
+  const { executeOneClickStake, isExecuting } = useOneClickStaking(wallets);
+  
   const [amount, setAmount] = useState('');
-  const [duration, setDuration] = useState('45');
-  const [isStaking, setIsStaking] = useState(false);
+  const [duration, setDuration] = useState('45'); // Default to 45 days
   const [isUnstaking, setIsUnstaking] = useState(false);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
+  const [isGrantingRole, setIsGrantingRole] = useState(false);
+  const [minterRoleTxHash, setMinterRoleTxHash] = useState<string>('');
+  const walletCreationAttempted = useRef(false);
 
-  const handleStake = async () => {
+  // Auto-grant minter role function
+  const autoGrantMinterRole = async () => {
+    if (!address) {
+      console.log('❌ No address available for granting minter role');
+      return;
+    }
+
     try {
-      setIsStaking(true);
-      await stake(amount, Number(duration));
-      setAmount('');
-      setDuration('45');
-    } catch (err) {
-      // Error is handled in the hook
+      setIsGrantingRole(true);
+      console.log('🔐 Auto-granting minter role to:', address);
+      
+      const MINTER_ROLE = keccak256(toUtf8Bytes("MINTER_ROLE"));
+      
+      const res = await fetch('/api/grant-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: MINTER_ROLE, address }),
+      });
+      
+      const data = await res.json();
+      
+      if (data.success) {
+        console.log('✅ Minter role granted automatically! Tx:', data.txHash);
+        setMinterRoleTxHash(data.txHash);
+        toast.success('🎉 Minter role granted automatically!', {
+          autoClose: 5000,
+          onClick: () => {
+            if (data.txHash) {
+              window.open(`https://explorer.testnet.citrea.xyz/tx/${data.txHash}`, '_blank');
+            }
+          }
+        });
+      } else {
+        console.log('⚠️ Auto-grant minter role failed:', data.error);
+        toast.error('Failed to grant minter role automatically');
+      }
+    } catch (error) {
+      console.error('❌ Auto-grant minter role error:', error);
+      toast.error('Failed to grant minter role automatically');
     } finally {
-      setIsStaking(false);
+      setIsGrantingRole(false);
+    }
+  };
+
+  // Auto-create wallet if user is authenticated but has no wallets
+  useEffect(() => {
+    const createWalletIfNeeded = async () => {
+      // More robust check - don't create if we already have an address or if wallets exist
+      const hasWallets = wallets.length > 0;
+      const hasAddress = !!address;
+      const shouldCreateWallet = ready && authenticated && !hasAddress && !hasWallets && !isCreatingWallet && !walletCreationAttempted.current;
+      
+      console.log('📊 Wallet creation check:', {
+        ready,
+        authenticated,
+        hasAddress,
+        hasWallets,
+        walletsLength: wallets.length,
+        isCreatingWallet,
+        shouldCreateWallet
+      });
+      
+      if (shouldCreateWallet) {
+        console.log('🔄 No wallets found, creating embedded wallet...');
+        
+        walletCreationAttempted.current = true;
+        setIsCreatingWallet(true);
+        try {
+          await createWallet();
+          console.log('✅ Embedded wallet created successfully');
+        } catch (error) {
+          console.error('❌ Failed to create wallet:', error);
+          // If error is about already having a wallet, that's actually fine
+          if (error instanceof Error && error.message.includes('already has an embedded wallet')) {
+            console.log('✅ Wallet already exists - this is expected');
+            // Don't treat this as an error, just log it
+          } else {
+            // Only show error toast for actual errors
+            toast.error('Failed to create wallet. Please try again.');
+          }
+        } finally {
+          setIsCreatingWallet(false);
+        }
+      } else {
+        console.log('📝 Wallet creation skipped:', {
+          ready,
+          authenticated,
+          hasAddress,
+          hasWallets,
+          walletsLength: wallets.length,
+          isCreatingWallet
+        });
+      }
+    };
+
+    createWalletIfNeeded();
+  }, [ready, authenticated, address, wallets.length, createWallet, isCreatingWallet]);
+
+  // Reset wallet creation attempt when user changes
+  useEffect(() => {
+    if (!authenticated) {
+      walletCreationAttempted.current = false;
+    }
+  }, [authenticated]);
+
+  // Debug wallet state changes
+  useEffect(() => {
+    console.log('🔄 StakingInterface wallet state changed:', {
+      walletsLength: wallets?.length || 0,
+      wallets: wallets?.map(w => ({
+        address: w.address,
+        type: w.walletClientType,
+        connectorType: w.connectorType
+      })) || [],
+      privyWallet: !!privyWallet,
+      address
+    });
+  }, [wallets, privyWallet, address]);
+
+  // One-click staking handler
+  const handleOneClickStake = async () => {
+    if (!amount || !duration) {
+      toast.error('Please enter amount and duration');
+      return;
+    }
+
+            // Check if user has enough METRIK balance
+        const requiredAmount = parseFloat(amount);
+        const currentBalance = parseFloat(String(animatedMetrikBalance));
+    
+    if (currentBalance < requiredAmount) {
+      toast.error(
+        `❌ Insufficient METRIK balance! 
+        💰 Required: ${requiredAmount} METRIK
+        💰 Available: ${currentBalance} METRIK
+        💡 Go to Home page to claim more tokens from faucet`,
+        { autoClose: 8000 }
+      );
+      return;
+    }
+
+    try {
+      console.log('🚀 Initiating one-click stake:', { amount, duration });
+      
+      const result = await executeOneClickStake(amount, duration);
+      
+      if (result?.success) {
+        console.log('✅ One-click staking successful!', result);
+        
+        // Clear form on success
+        setAmount('');
+        setDuration('45'); // Reset to default instead of clearing
+        
+        // Show success message with transaction details
+        toast.success(`🎉 One-click staking completed successfully!`, {
+          autoClose: 8000,
+          onClick: () => {
+            if (result.stakingHash) {
+              window.open(`https://explorer.testnet.citrea.xyz/tx/${result.stakingHash}`, '_blank');
+            }
+          }
+        });
+        
+        // Auto-grant minter role after successful staking
+        console.log('🔐 Auto-granting minter role after successful staking...');
+        setTimeout(() => {
+          autoGrantMinterRole();
+        }, 2000); // Wait 2 seconds after staking success
+      }
+    } catch (error) {
+      console.error('❌ One-click staking error:', error);
+      toast.error('One-click staking failed. Please try again.');
     }
   };
 
   const handleUnstake = async () => {
     try {
       setIsUnstaking(true);
-      await unstake();
+      
+      // Get active stakes to find the first valid stake index
+      const activeStakes = await getActiveStakes(address);
+      console.log('🔍 handleUnstake: Active stakes:', activeStakes);
+      
+      if (activeStakes.length === 0) {
+        toast.error('No active stakes found to unstake.');
+        return;
+      }
+      
+      // Find the first stake with amount > 0
+      const validStakeIndex = activeStakes.findIndex(stake => stake.amount > 0n);
+      
+      if (validStakeIndex === -1) {
+        toast.error('No valid stakes found to unstake.');
+        return;
+      }
+      
+      // Check if the stake has reached its duration
+      const stake = activeStakes[validStakeIndex];
+      const currentTime = Math.floor(Date.now() / 1000);
+      const stakeEndTime = Number(stake.startTime) + Number(stake.duration);
+      const timeRemaining = stakeEndTime - currentTime;
+      
+      console.log('🔍 handleUnstake: Stake details:', {
+        startTime: new Date(Number(stake.startTime) * 1000),
+        duration: Number(stake.duration),
+        endTime: new Date(stakeEndTime * 1000),
+        currentTime: new Date(currentTime * 1000),
+        timeRemaining: timeRemaining / (24 * 60 * 60), // in days
+        canUnstake: timeRemaining <= 0
+      });
+      
+      if (timeRemaining > 0) {
+        const daysRemaining = Math.ceil(timeRemaining / (24 * 60 * 60));
+        toast.error(`Cannot unstake yet! Staking period ends in ${daysRemaining} days.`);
+        return;
+      }
+      
+      console.log('🔍 handleUnstake: Unstaking stake at index:', validStakeIndex);
+      await unstake(validStakeIndex);
+      
+      toast.success('Unstake successful! Your tokens have been returned.');
     } catch (err) {
-      // Error is handled in the hook
+      console.error('Unstaking error:', err);
+      
+      // Check for specific error messages
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('StakingPeriodNotEnded')) {
+        toast.error('Cannot unstake yet! Your staking period has not ended.');
+      } else if (errorMessage.includes('NoStakeFound')) {
+        toast.error('No stake found at the specified index.');
+      } else if (errorMessage.includes('Invalid stake index')) {
+        toast.error('Invalid stake index. Please try again.');
+      } else {
+        toast.error('Failed to unstake. Please try again.');
+      }
     } finally {
       setIsUnstaking(false);
     }
   };
 
   const getTierName = (tier: number) => {
-    const tierNames = ['Bronze', 'Silver', 'Gold', 'Diamond', 'Platinum'];
-    return tierNames[tier] || `Tier ${tier}`;
+    const names = ['None', 'Diamond', 'Gold', 'Silver', 'Bronze'];
+    return names[tier] || 'Unknown';
   };
 
   const getTierColor = (tier: number) => {
-    const colors = ['text-orange-600', 'text-gray-600', 'text-yellow-600', 'text-blue-600', 'text-purple-600'];
+    const colors = ['text-gray-600', 'text-orange-600', 'text-gray-600', 'text-yellow-600', 'text-purple-600'];
     return colors[tier] || 'text-gray-600';
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl text-black font-bold mb-4">Stake METRIK Tokens</h2>
+    <div className="space-y-6">
+      {/* Centered Transaction Loader */}
+      {isExecuting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ⚡ Processing Seamless Staking
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Please wait while we complete your staking transaction...
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Step 1: Approving METRIK tokens</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Step 2: Staking tokens (in progress)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Staking Info Tables in a techy card layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <StakingInfoTable />
-        <TierInfoTable />
-      </div>
+      {/* Centered Minter Role Loader */}
+      {isGrantingRole && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  🔐 Granting Minter Role
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Please wait while we grant you the minter role...
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                    <span>Processing minter role request...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Minter Role Success Modal */}
+      {minterRoleTxHash && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl max-w-md mx-4">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ✅ Minter Role Granted Successfully!
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  You can now create invoices and mint NFTs.
+                </p>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-xs text-gray-600 mb-1">Transaction Hash:</p>
+                  <p className="text-xs font-mono text-gray-800 break-all">
+                    {minterRoleTxHash}
+                  </p>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    onClick={() => {
+                      window.open(`https://explorer.testnet.citrea.xyz/tx/${minterRoleTxHash}`, '_blank');
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                    size="sm"
+                  >
+                    🔍 View on Explorer
+                  </Button>
+                  <Button
+                    onClick={() => setMinterRoleTxHash('')}
+                    className="bg-gray-600 hover:bg-gray-700 text-white text-sm"
+                    size="sm"
+                  >
+                    ✕ Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Wallet Status */}
+      {isCreatingWallet && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-blue-800">Creating Wallet</h3>
+              <div className="mt-1 text-sm text-blue-700">Please wait while we create your embedded wallet...</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+
 
       {/* Error Display */}
       {error && (
@@ -89,8 +435,10 @@ export function StakingInterface() {
         </div>
       )}
 
+
+
       {/* Staking Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-medium text-gray-900">Current Stake</h3>
           <div className="flex items-center">
@@ -102,6 +450,19 @@ export function StakingInterface() {
             )}
           </div>
           <p className="text-sm text-gray-500">Duration: {stakeDuration ? (stakeDuration / (24 * 60 * 60)) : 0} days</p>
+        </div>
+
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="text-lg font-medium text-gray-900">METRIK Balance</h3>
+          <div className="flex items-center">
+            <p className="text-2xl font-bold text-green-600 transition-all duration-300">
+              {animatedMetrikBalance} METRIK
+            </p>
+            {isLoading && (
+              <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">Available for staking</p>
         </div>
 
         <div className="bg-gray-50 p-4 rounded-lg">
@@ -118,241 +479,157 @@ export function StakingInterface() {
         </div>
       </div>
 
-      {/* METRIK Balance */}
-      <div className="bg-green-50 p-4 rounded-lg mb-6">
-        <h3 className="text-lg font-medium text-gray-900">METRIK Balance</h3>
-        <div className="flex items-center">
-          <p className="text-2xl font-bold text-green-600 transition-all duration-300">
-            {animatedMetrikBalance} METRIK
-          </p>
-          {isLoading && (
-            <div className="ml-2 w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-          )}
-        </div>
-      </div>
+      {/* Staking Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>Stake METRIK</span>
+            <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full font-normal">
+              ⚡ Zero-Click Available
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* One-Click Benefits Info */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+            <h4 className="text-sm font-semibold text-green-900 mb-2">⚡ Why Use Seamless Staking?</h4>
+            <ul className="text-xs text-green-800 space-y-1">
+              <li>• <strong>Zero-Click:</strong> No wallet confirmations or prompts</li>
+              <li>• <strong>Instant:</strong> Backend handles all approvals automatically</li>
+              <li>• <strong>Seamless:</strong> Approval + staking in complete background</li>
+              <li>• <strong>Perfect UX:</strong> Users don&apos;t need to understand blockchain complexity</li>
+            </ul>
+          </div>
 
-      {/* Active Stakes Display */}
-      {activeStakes && activeStakes.length > 0 && (
-        <div className="bg-purple-50 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-3">Active Stakes</h3>
-          <div className="space-y-10">
-            {activeStakes.map((stake, index) => (
-              <div key={index}>
-                {/* Main Stake Info Card */}
-                <div className="bg-white p-6 rounded-lg border flex flex-col md:flex-row md:items-center gap-6 mb-6 shadow-sm">
-                  <div className="flex flex-col justify-between min-w-[180px] md:w-1/5">
-                    <p className="font-medium text-gray-900 text-3xl mb-2">{formatUnits(stake.amount, 18)} METRIK</p>
-                    <div className={`px-2 py-1 rounded-full text-xs inline-block w-fit ${stake.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{stake.isActive ? 'Active' : 'Inactive'}</div>
-                    <p className="text-xs text-gray-400 mt-2">ID: {stake.stakeId.toString()}</p>
-                  </div>
-                </div>
-                {/* Stat Cards Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                  <div className="bg-blue-50 rounded-lg p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xs text-blue-700 font-semibold mb-1">APY</span>
-                    <span className="text-2xl font-bold text-blue-900">{Number(stake.apy) / 100}%</span>
-                  </div>
-                  <div className="bg-yellow-50 rounded-lg p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xs text-yellow-700 font-semibold mb-1">Multiplier</span>
-                    <span className="text-2xl font-bold text-yellow-900">{Number(stake.multiplier) / 100}x</span>
-                  </div>
-                  <div className="bg-indigo-50 rounded-lg p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xs text-indigo-700 font-semibold mb-1">Duration</span>
-                    <span className="text-2xl font-bold text-indigo-900">{Number(stake.duration) / (24 * 60 * 60)} days</span>
-                  </div>
-                  <div className="bg-green-50 rounded-lg p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xs text-green-700 font-semibold mb-1">Claimed Reward</span>
-                    <span className="text-2xl font-bold text-green-900">{stake.rewardDebt ? (Number(stake.rewardDebt) / 1e18).toFixed(4) : '0.0000'} METRIK</span>
-                  </div>
-                  <div className="bg-purple-100 rounded-lg p-6 flex flex-col items-center justify-center shadow-sm">
-                    <span className="text-xs text-purple-700 font-semibold mb-1">Pending Reward</span>
-                    <span className="text-2xl font-bold text-purple-900">{stake.pendingReward ? (Number(stake.pendingReward) / 1e18).toFixed(4) : '0.0000'} METRIK</span>
+
+          
+          {/* Seamless Execution Progress */}
+          {isExecuting && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-amber-900">⚡ Seamless Execution in Progress</h4>
+                  <p className="text-xs text-amber-800 mt-1">
+                    Running approval + staking in background... No action needed from you!
+                  </p>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-amber-700">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Step 1: Approval transaction submitted</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-amber-700">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
+                      <span>Step 2: Waiting for blockchain confirmation (~8 seconds)</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-amber-600">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <span>Step 3: Staking transaction (pending)</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="amount">Amount to Stake</Label>
+              <Input
+                id="amount"
+                type="number"
+                placeholder="Enter amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                                       disabled={isExecuting}
+              />
+              {amount && parseFloat(amount) > parseFloat(String(animatedMetrikBalance)) && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                  ⚠️ Insufficient balance! You have {animatedMetrikBalance} METRIK available.
+                  <br />
+                  <Link href="/" className="text-red-800 underline font-medium">
+                    → Go to Home page to claim more tokens
+                  </Link>
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="duration">Duration (days)</Label>
+              <select
+                id="duration"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                disabled={isExecuting}
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              >
+                <option value="45">45 days (Standard)</option>
+                <option value="90">90 days (Extended)</option>
+                <option value="180">180 days (Long-term) ⭐ 2x Points</option>
+                <option value="365">365 days (Maximum) ⭐ 2x Points</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                ⭐ 180+ days get 2x points multiplier
+              </p>
+            </div>
+            
+            {/* One-Click Staking (Primary Method) */}
+            <div className="space-y-3">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
+                <h4 className="text-sm font-semibold text-green-900 mb-2">🚀 Seamless Staking (Zero-Click Experience)</h4>
+                <p className="text-xs text-green-700 mb-3">
+                  ✨ Completely automated! Approval + staking happens in background with ZERO wallet prompts!
+                </p>
+
+                
+                <Button
+                  onClick={handleOneClickStake}
+                  disabled={
+                    isExecuting || 
+                    isCreatingWallet || 
+                    !amount || 
+                    !duration || 
+                    !authenticated || 
+                    (!privyWallet && !isCreatingWallet)
+                  }
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
+                  size="lg"
+                >
+                  {isExecuting 
+                    ? '⚡ Processing Seamlessly...' 
+                    : isCreatingWallet 
+                      ? 'Creating Wallet...' 
+                      : !authenticated 
+                        ? 'Please Login First'
+                        : !privyWallet 
+                          ? 'Wallet Required'
+                          : `⚡ SEAMLESS STAKE ${amount ? `${amount} METRIK` : ''} (Zero-Click)`
+                  }
+                </Button>
+              </div>
+
+
+            </div>
           </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
-      {/* Staking Form */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Amount</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black px-2 py-3"
-            placeholder="Enter amount to stake"
-            disabled={isStaking || isUnstaking}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Duration (days)</label>
-          <select
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black px-2 py-3"
-            disabled={isStaking || isUnstaking}
-          >
-            <option value="45">45</option>
-            <option value="90">90</option>
-            <option value="180">180</option>
-            <option value="365">365</option>
-          </select>
-        </div>
-        {/* Show APY for selected duration */}
-        <ShowAPY duration={duration} />
-        <div className="flex space-x-4">
-          <button
-            onClick={handleStake}
-            className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isStaking || isUnstaking || !amount || !duration}
-          >
-            {isStaking ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Staking...
-              </>
-            ) : (
-              'Stake'
-            )}
-          </button>
-          <button
+      {/* Unstaking Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Unstake METRIK</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button
             onClick={handleUnstake}
-            className="inline-flex justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-bold text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isStaking || isUnstaking}
+            disabled={isUnstaking}
+            variant="outline"
+            className="w-full"
           >
-            {isUnstaking ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                Unstaking...
-              </>
-            ) : (
-              'Unstake'
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-import React, { useEffect, useState as useReactState } from 'react';
-import { useStaking } from '@/hooks/useStaking';
-import { CheckCircleIcon, StarIcon, TrophyIcon } from '@heroicons/react/24/solid';
-
-function ShowAPY({ duration }: { duration: string }) {
-  const { getAPYForDuration } = useStaking();
-  const [apy, setApy] = useReactState<number | null>(null);
-  useEffect(() => {
-    getAPYForDuration(Number(duration)).then(setApy);
-  }, [duration, getAPYForDuration]);
-  return (
-    <div className="text-sm text-gray-700 mb-2">
-      APY for selected duration: {apy !== null ? `${apy}%` : '...'}
-    </div>
-  );
-}
-
-function StakingInfoTable() {
-  const { getAPYForDuration } = useStaking();
-  const [info, setInfo] = useReactState<{
-    days: number;
-    apy: number | null;
-    multiplier: number | null;
-    points: number | null;
-  }[]>([
-    { days: 45, apy: null, multiplier: null, points: null },
-    { days: 90, apy: null, multiplier: null, points: null },
-    { days: 180, apy: null, multiplier: null, points: null },
-    { days: 365, apy: null, multiplier: null, points: null },
-  ]);
-  useEffect(() => {
-    async function fetchInfo() {
-      const updated = await Promise.all(
-        info.map(async (row) => {
-          const apy = await getAPYForDuration(row.days * 24 * 60 * 60);
-          let multiplier = 0;
-          let points = 0;
-          if (row.days === 45) { multiplier = 0.1; points = 1; }
-          if (row.days === 90) { multiplier = 0.25; points = 2; }
-          if (row.days === 180) { multiplier = 0.5; points = 4; }
-          if (row.days === 365) { multiplier = 1; points = 8; }
-          return { ...row, apy, multiplier, points };
-        })
-      );
-      setInfo(updated);
-    }
-    fetchInfo();
-    // eslint-disable-next-line
-  }, []);
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <span className="text-gray-700">Staking Rewards Table</span>
-      </h4>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm rounded-lg border border-gray-100">
-          <thead>
-            <tr className="bg-gray-50 text-gray-700">
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Duration (days)</th>
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">APY</th>
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Multiplier</th>
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Points per 1 METRIK</th>
-            </tr>
-          </thead>
-          <tbody>
-            {info.map((row) => (
-              <tr key={row.days} className="hover:bg-gray-50 transition">
-                <td className="px-3 py-2 text-center text-gray-900">{row.days}</td>
-                <td className="px-3 py-2 text-center text-gray-700">{row.apy !== null ? `${row.apy}%` : '...'}</td>
-                <td className="px-3 py-2 text-center text-gray-700">{row.multiplier !== null ? `${row.multiplier}x` : '...'}</td>
-                <td className="px-3 py-2 text-center text-gray-700">{row.points !== null ? row.points : '...'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function TierInfoTable() {
-  // Example static tier data, update as needed
-  const tiers = [
-    { name: 'Bronze', icon: <CheckCircleIcon className="h-5 w-5 text-gray-400" />, required: '0', perks: 'Basic access' },
-    { name: 'Silver', icon: <CheckCircleIcon className="h-5 w-5 text-gray-400" />, required: '1,000', perks: 'Lower fees' },
-    { name: 'Gold', icon: <TrophyIcon className="h-5 w-5 text-yellow-500" />, required: '5,000', perks: 'Priority support' },
-    { name: 'Diamond', icon: <StarIcon className="h-5 w-5 text-blue-400" />, required: '10,000', perks: 'VIP rewards' },
-    { name: 'Platinum', icon: <StarIcon className="h-5 w-5 text-purple-400" />, required: '50,000', perks: 'All perks' },
-  ];
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-        <span className="text-gray-700">Tier Table</span>
-      </h4>
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm rounded-lg border border-gray-100">
-          <thead>
-            <tr className="bg-gray-50 text-gray-700">
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Tier</th>
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Required Stake</th>
-              <th className="px-3 py-2 border-b border-gray-200 font-medium">Perks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tiers.map((tier) => (
-              <tr key={tier.name} className="hover:bg-gray-50 transition">
-                <td className="px-3 py-2 text-center font-medium flex items-center gap-2 justify-center text-gray-900">{tier.icon}{tier.name}</td>
-                <td className="px-3 py-2 text-center text-gray-700">{tier.required} METRIK</td>
-                <td className="px-3 py-2 text-center text-gray-700">{tier.perks}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            {isUnstaking ? 'Unstaking...' : 'Unstake All'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

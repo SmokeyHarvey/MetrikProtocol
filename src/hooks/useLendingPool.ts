@@ -4,6 +4,8 @@ import { usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { formatAmount } from '@/lib/utils/contracts';
 import { type Address, parseUnits } from 'viem';
 import { toast } from 'react-toastify';
+import { useSendTransaction } from '@privy-io/react-auth';
+import { encodeFunctionData } from 'viem';
 
 // Types for the new lending pool functions
 export interface LPDeposit {
@@ -26,12 +28,15 @@ export enum Tranche {
   SENIOR = 1,
 }
 
-export function useLendingPool() {
+export function useLendingPool(addressOverride?: string) {
   const { contract: lendingPoolContract } = useContract('lendingPool');
   const { contract: usdcContract } = useContract('usdc');
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { sendTransaction } = useSendTransaction();
+  // Use override if provided, else Wagmi address
+  const address: Address | undefined = (addressOverride || wagmiAddress) as Address | undefined;
 
   const [borrowedAmount, setBorrowedAmount] = useState<string>('0');
   const [availableLiquidity, setAvailableLiquidity] = useState<string>('0');
@@ -66,7 +71,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserTotalBorrowed',
-        args: [userAddress],
+        args: [userAddress as Address],
       });
       setBorrowedAmount(formatAmount(data as bigint, 6)); // USDC has 6 decimals
     } catch (err) {
@@ -91,7 +96,7 @@ export function useLendingPool() {
         address: usdcContract.address,
         abi: usdcContract.abi,
         functionName: 'balanceOf',
-        args: [lendingPoolContract.address],
+        args: [address as Address],
       });
       setAvailableLiquidity(formatAmount(data as bigint, 6)); // USDC has 6 decimals
     } catch (err) {
@@ -101,7 +106,7 @@ export function useLendingPool() {
     } finally {
       setIsLoading(false);
     }
-  }, [publicClient, usdcContract.address, usdcContract.abi, lendingPoolContract.address]);
+  }, [publicClient, usdcContract.address, usdcContract.abi, lendingPoolContract.address, address]);
 
   const fetchUsdcBalance = useCallback(async () => {
     setIsBalanceLoading(true);
@@ -117,7 +122,7 @@ export function useLendingPool() {
         address: usdcContract.address,
         abi: usdcContract.abi,
         functionName: 'balanceOf',
-        args: [address],
+        args: [address as Address],
       });
       setUsdcBalance(data as bigint);
     } catch (err) {
@@ -158,7 +163,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getLPInterest',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       console.log('getLPInterest raw value:', interest);
       const formattedInterest = formatAmount(interest as bigint, 6); // USDC has 6 decimals
@@ -379,7 +384,7 @@ export function useLendingPool() {
           address: lendingPoolContract.address,
           abi: lendingPoolContract.abi,
           functionName: 'getUserTotalBorrowed',
-          args: [userAddress],
+          args: [userAddress as Address],
         }) as bigint;
         console.log('getUserActiveLoans: Total borrowed amount:', totalBorrowed.toString());
         
@@ -399,7 +404,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserActiveLoans',
-        args: [userAddress],
+        args: [userAddress as Address],
       }) as bigint[];
         console.log('getUserActiveLoans: Raw loan IDs from getUserActiveLoans:', loanIds);
       } catch (err) {
@@ -410,7 +415,7 @@ export function useLendingPool() {
             address: lendingPoolContract.address,
             abi: lendingPoolContract.abi,
             functionName: 'getUserLoans',
-            args: [userAddress],
+            args: [userAddress as Address],
           }) as bigint[];
           console.log('getUserActiveLoans: Raw loan IDs from getUserLoans:', loanIds);
         } catch (err2) {
@@ -440,7 +445,7 @@ export function useLendingPool() {
               address: lendingPoolContract.address,
               abi: lendingPoolContract.abi,
               functionName: 'getUserLoanDetails',
-              args: [userAddress, BigInt(invoiceId)],
+              args: [userAddress as Address, BigInt(invoiceId)],
             }) as any;
             
             // Check if this is an active loan (not repaid, not liquidated, has amount)
@@ -477,7 +482,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserLoanDetails',
-        args: [userAddress, BigInt(tokenId)],
+        args: [userAddress as Address, BigInt(tokenId)],
       }) as any;
 
       console.log('getUserLoanDetails: Raw details from contract:', details);
@@ -522,8 +527,8 @@ export function useLendingPool() {
         throw new Error('USDC contract not available.');
       }
 
-      if (!walletClient || !address || !publicClient) {
-        throw new Error('Wallet client, address, or public client not available.');
+      if (!address || !publicClient) {
+        throw new Error('Address or public client not available.');
       }
 
       // Validate tokenId - allow '0' as valid
@@ -558,6 +563,40 @@ export function useLendingPool() {
       const buffer = parseUnits('1', 6); // 1 USDC
       totalAmountDue = parseUnits((parseFloat(loanDetails.amount) + parseFloat(loanDetails.interestAccrued)).toFixed(6), 6) + buffer; // Convert to BigInt with 6 decimals
 
+      // Check if Privy embedded wallet is being used
+      const isPrivy = address && address.toLowerCase().startsWith('0x'); // You may want a more robust check
+      if (isPrivy && sendTransaction) {
+        // Approve USDC for LendingPool
+        const approveData = encodeFunctionData({
+          abi: usdcContract.abi,
+          functionName: 'approve',
+          args: [lendingPoolContract.address, totalAmountDue],
+        });
+        const approveTx = await sendTransaction({
+          to: usdcContract.address,
+          data: approveData,
+          value: 0n,
+          chainId: publicClient.chain.id,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveTx.hash });
+
+        // Repay loan
+        const repayData = encodeFunctionData({
+          abi: lendingPoolContract.abi,
+          functionName: 'repay',
+          args: [BigInt(tokenId)],
+        });
+        const repayTx = await sendTransaction({
+          to: lendingPoolContract.address,
+          data: repayData,
+          value: 0n,
+          chainId: publicClient.chain.id,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: repayTx.hash });
+        toast.success('Repayment successful!');
+        return repayTx.hash;
+      }
+
       // First approve the lending pool to spend USDC for repayment
       const { request: approveRequest } = await publicClient.simulateContract({
         account: address,
@@ -567,6 +606,9 @@ export function useLendingPool() {
         args: [lendingPoolContract.address, totalAmountDue],
       });
 
+      if (!walletClient) {
+        throw new Error('Wallet client not available. Please ensure your wallet is connected.');
+      }
       const approveHash = await walletClient.writeContract(approveRequest);
       await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
@@ -611,7 +653,7 @@ export function useLendingPool() {
                 address: usdcContract.address,
                 abi: usdcContract.abi,
                 functionName: 'balanceOf',
-                args: [address],
+                args: [address as Address],
               }) as bigint;
               console.log('Current USDC balance:', usdcBalance.toString());
               if (usdcBalance < amountDue) {
@@ -642,7 +684,7 @@ export function useLendingPool() {
     } finally {
       setIsLoading(false);
     }
-  }, [lendingPoolContract, usdcContract, walletClient, publicClient, address, getUserLoanDetails]);
+  }, [lendingPoolContract, usdcContract, walletClient, publicClient, address, getUserLoanDetails, sendTransaction]);
 
   const getMaxBorrowAmount = async (tokenId: string): Promise<string> => {
     if (!lendingPoolContract || !lendingPoolContract.address || !lendingPoolContract.abi) {
@@ -656,7 +698,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getMaxBorrowAmount',
-        args: [tokenId],
+        args: [BigInt(tokenId)],
       });
       setIsLoading(false);
       // Return the raw value as a string (in 1e6 units for USDC)
@@ -756,7 +798,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserLoans',
-        args: [userAddress],
+        args: [userAddress as Address],
       }) as bigint[];
       return loanIds.map(id => id.toString());
     } catch (err) {
@@ -777,7 +819,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserTotalLPDeposits',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       const formattedDeposits = formatAmount(deposits as bigint, 6); // USDC has 6 decimals
       setUserTotalDeposits(formattedDeposits);
@@ -801,7 +843,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getUserLPDeposits',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       const depositsArray = deposits as LPDeposit[];
       setUserDeposits(depositsArray);
@@ -825,7 +867,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getLPTrancheBreakdown',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       
       if (Array.isArray(breakdown) && breakdown.length === 2) {
@@ -857,7 +899,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'isRegisteredLP',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       const registered = Boolean(isRegistered);
       setIsRegisteredLP(registered);
@@ -881,7 +923,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getLPActiveDeposits',
-        args: [lpAddress || address || '0x0'],
+        args: [(lpAddress || address || '0x0') as Address],
       });
       const depositsArray = deposits as LPDeposit[];
       setActiveDeposits(depositsArray);
@@ -904,7 +946,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getBorrowingCapacity',
-        args: [userAddress || address || '0x0'],
+        args: [(userAddress || address || '0x0') as Address],
       });
       return formatAmount(capacity as bigint, 6); // USDC has 6 decimals
     } catch (err) {
@@ -924,7 +966,7 @@ export function useLendingPool() {
         address: lendingPoolContract.address,
         abi: lendingPoolContract.abi,
         functionName: 'getSafeLendingAmount',
-        args: [userAddress || address || '0x0', invoiceAmount || BigInt(0)],
+        args: [(userAddress || address || '0x0') as Address, invoiceAmount || BigInt(0)],
       });
       return formatAmount(safeAmount as bigint, 6); // USDC has 6 decimals
     } catch (err) {

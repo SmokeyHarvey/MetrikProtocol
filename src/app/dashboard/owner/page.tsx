@@ -18,7 +18,6 @@ import { keccak256, toUtf8Bytes } from 'ethers';
 const CONTRACT_OWNER = process.env.NEXT_PUBLIC_CONTRACT_OWNER?.toLowerCase();
 
 export default function OwnerDashboard() {
-  const router = useRouter();
   const { address } = useAccount();
   const { 
     invoices, 
@@ -91,7 +90,7 @@ export default function OwnerDashboard() {
   // Sort invoices: pending first, then verified
   const sortedInvoices = [...invoices].sort((a, b) => {
     if (a.isVerified === b.isVerified) {
-      return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime(); // Newest first
+      return new Date(Number(b.dueDate) * 1000).getTime() - new Date(Number(a.dueDate) * 1000).getTime(); // Newest first
     }
     return a.isVerified ? 1 : -1; // Pending first
   });
@@ -211,8 +210,8 @@ export default function OwnerDashboard() {
                             <TableCell className="font-medium">
                               #{invoice.invoiceId}
                             </TableCell>
-                            <TableCell>{invoice.creditAmount} USDC</TableCell>
-                            <TableCell>{invoice.dueDate.toLocaleDateString()}</TableCell>
+                            <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
+                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono text-sm">
                               {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
                             </TableCell>
@@ -276,8 +275,8 @@ export default function OwnerDashboard() {
                             <TableCell className="font-medium">
                               #{invoice.invoiceId}
                             </TableCell>
-                            <TableCell>{invoice.creditAmount} USDC</TableCell>
-                            <TableCell>{invoice.dueDate.toLocaleDateString()}</TableCell>
+                            <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
+                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono text-sm">
                               {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
                             </TableCell>
