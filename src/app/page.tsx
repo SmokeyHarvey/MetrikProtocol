@@ -467,7 +467,7 @@ export default function Home() {
                 {/* Benefits */}
                 <div className="flex-1 mb-8">
                   <div className="bg-gray-50 rounded-3xl p-6 mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">What you'll get:</h3>
+                    <h3 className="font-semibold text-gray-900 mb-4">What you&apos;ll get:</h3>
                     <div className="space-y-3">
                       {selectedRoleData.features.map((feature, idx) => (
                         <div key={idx} className="flex items-center">
