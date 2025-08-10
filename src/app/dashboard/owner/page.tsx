@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
+import { useStaking } from '@/hooks/useStaking';
 import { OwnerPlatformFees } from '@/components/dashboard/OwnerPlatformFees';
+import { VerifierStakingInterface } from '@/components/contracts/VerifierStakingInterface';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, CheckCircle, FileText } from 'lucide-react';
+import { Clock, CheckCircle, FileText, Shield, Coins } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { keccak256, toUtf8Bytes } from 'ethers';
 
@@ -28,12 +30,15 @@ export default function OwnerDashboard() {
     error 
   } = useInvoiceNFT();
 
+  const { stakedAmount, currentTier } = useStaking(address);
+
   const [isVerifier, setIsVerifier] = useState(false);
   const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [granting, setGranting] = useState(false);
+  const [hasStakedTokens, setHasStakedTokens] = useState(false);
 
   useEffect(() => {
-    if (address) {
+    if (address && hasStakedTokens) {
       fetchInvoices(address);
       hasVerifierRole(address).then((hasRole) => {
         setIsVerifier(hasRole);
@@ -42,9 +47,23 @@ export default function OwnerDashboard() {
     } else {
       setIsCheckingRole(false);
     }
-  }, [address, fetchInvoices, hasVerifierRole]);
+  }, [address, fetchInvoices, hasVerifierRole, hasStakedTokens]);
+
+  // Check if user has staked tokens
+  useEffect(() => {
+    if (stakedAmount && parseFloat(stakedAmount) > 0) {
+      setHasStakedTokens(true);
+    } else {
+      setHasStakedTokens(false);
+    }
+  }, [stakedAmount]);
 
   const handleGrantRole = async () => {
+    if (!hasStakedTokens) {
+      toast.error('You must stake METRIK tokens before becoming a verifier');
+      return;
+    }
+
     setGranting(true);
     try {
       const VERIFIER_ROLE = keccak256(toUtf8Bytes("VERIFIER_ROLE"));
@@ -98,71 +117,152 @@ export default function OwnerDashboard() {
   const pendingInvoices = sortedInvoices.filter(invoice => !invoice.isVerified);
   const verifiedInvoices = sortedInvoices.filter(invoice => invoice.isVerified);
 
-  if (isCheckingRole || granting) {
+  // Show staking interface if user hasn't staked tokens
+  if (!hasStakedTokens) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">{granting ? 'Granting Verifier Role...' : 'Checking permissions...'}</p>
-        </div>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-indigo-600" />
+              Verifier Requirements
+            </CardTitle>
+            <CardDescription>
+              To become a verifier, you must first stake METRIK tokens. This ensures verifiers have skin in the game and are incentivized to act honestly.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Alert>
+                <Coins className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Staking Requirement:</strong> You need to stake METRIK tokens before you can become a verifier. 
+                  This helps maintain the integrity of the verification process.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-2">Current Status:</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Staked Amount:</span>
+                    <span className="font-mono">{stakedAmount || '0'} METRIK</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Current Tier:</span>
+                    <Badge variant={currentTier >= 3 ? "default" : "secondary"}>
+                      {currentTier === 0 ? 'None' : 
+                       currentTier === 1 ? 'Bronze' :
+                       currentTier === 2 ? 'Silver' :
+                       currentTier === 3 ? 'Gold' : 'Diamond'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Stake METRIK Tokens</CardTitle>
+            <CardDescription>
+              Use the interface below to stake your METRIK tokens. Once you have staked tokens, you can apply to become a verifier.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <VerifierStakingInterface />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  // Show role granting interface if user has staked but isn't a verifier yet
   if (!isVerifier) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="text-center w-full max-w-md mx-auto">
-          <div className="mb-8">
-            {address && (
-              <button onClick={handleGrantRole} disabled={granting} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full">
-                {granting ? 'Granting...' : 'Get Verifier Role'}
-              </button>
-            )}
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Required</h2>
-          <p className="text-gray-600 mb-4">You need the Verifier role to access this dashboard.</p>
-        </div>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-green-600" />
+              Ready to Become a Verifier
+            </CardTitle>
+            <CardDescription>
+              Great! You have staked METRIK tokens. You can now apply to become a verifier.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Staking Requirement Met:</strong> You have successfully staked {stakedAmount} METRIK tokens.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-green-900 mb-2">Current Status:</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Staked Amount:</span>
+                    <span className="font-mono text-green-700">{stakedAmount} METRIK</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Current Tier:</span>
+                    <Badge variant="default" className="bg-green-600">
+                      {currentTier === 1 ? 'Bronze' :
+                       currentTier === 2 ? 'Silver' :
+                       currentTier === 3 ? 'Gold' : 'Diamond'}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Button 
+                  onClick={handleGrantRole} 
+                  disabled={granting} 
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                >
+                  {granting ? 'Granting Verifier Role...' : 'Become a Verifier'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  // Show the main verifier dashboard
   return (
     <div className="space-y-6">
-      {/* Get Verifier Role button at the top, hidden if already verifier */}
-      {address && !isVerifier && (
-        <div className="mb-4">
-          <button onClick={handleGrantRole} disabled={granting} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50 w-full">
-            {granting ? 'Granting...' : 'Get Verifier Role'}
-          </button>
-        </div>
-      )}
       {/* Platform Fee Management */}
       <OwnerPlatformFees />
       
       {/* Invoice Verification */}
-      <div className="space-y-6">
-        {/* Error Display */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              Error loading invoices: {error.message}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Invoice Management Tabs */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-indigo-500" />
-              Invoice Management
-            </CardTitle>
-            <CardDescription>
-              Manage and verify invoices for the platform
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Invoice Verification
+          </CardTitle>
+          <CardDescription>
+            Review and verify pending invoices. Only verified invoices can be used as collateral for borrowing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+              <p className="mt-2 text-gray-600">Loading invoices...</p>
+            </div>
+          ) : error ? (
+            <Alert>
+              <AlertDescription>Error loading invoices: {error.message}</AlertDescription>
+            </Alert>
+          ) : (
             <Tabs defaultValue="pending" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="pending" className="flex items-center gap-2">
@@ -175,145 +275,114 @@ export default function OwnerDashboard() {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="pending" className="mt-6">
-                {isLoading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="animate-pulse">
-                        <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : pendingInvoices.length === 0 ? (
+              <TabsContent value="pending" className="space-y-4">
+                {pendingInvoices.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                    <p>No pending invoices to verify!</p>
+                    No pending invoices to verify.
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Invoice ID</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Supplier</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Document</TableHead>
-                          <TableHead>Action</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pendingInvoices.map((invoice) => (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice ID</TableHead>
+                        <TableHead>Supplier</TableHead>
+                        <TableHead>Buyer</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Due Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                                              {pendingInvoices.map((invoice) => (
                           <TableRow key={invoice.id}>
-                            <TableCell className="font-medium">
-                              #{invoice.invoiceId}
-                            </TableCell>
-                            <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
-                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
                             <TableCell className="font-mono text-sm">
-                              {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
+                              {invoice.invoiceId}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {invoice.supplier.slice(0, 8)}...{invoice.supplier.slice(-4)}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {invoice.buyer.slice(0, 8)}...{invoice.buyer.slice(-4)}
+                            </TableCell>
+                            <TableCell>${Number(invoice.creditAmount) / 1e6}</TableCell>
+                            <TableCell>
+                              {new Date(Number(invoice.dueDate) * 1000).toLocaleDateString()}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                                Pending
-                              </Badge>
+                              <Badge variant="secondary">Pending</Badge>
                             </TableCell>
                             <TableCell>
-                              <a 
-                                href={invoice.gatewayUrl || `https://gateway.pinata.cloud/ipfs/${invoice.ipfsHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-500"
+                              <Button
+                                onClick={() => handleVerifyInvoice(invoice.id)}
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
                               >
-                                <FileText className="h-4 w-4" />
-                                View
-                              </a>
-                            </TableCell>
-                            <TableCell>
-                              {!invoice.isVerified && (
-                                <Button
-                                  onClick={() => handleVerifyInvoice(invoice.id)}
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700"
-                                >
-                                  Verify
-                                </Button>
-                              )}
+                                Verify
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                    </TableBody>
+                  </Table>
                 )}
               </TabsContent>
 
-              <TabsContent value="verified" className="mt-6">
+              <TabsContent value="verified" className="space-y-4">
                 {verifiedInvoices.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p>No verified invoices yet.</p>
+                    No verified invoices yet.
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Invoice ID</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Due Date</TableHead>
-                          <TableHead>Supplier</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Document</TableHead>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice ID</TableHead>
+                        <TableHead>Supplier</TableHead>
+                        <TableHead>Buyer</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Due Date</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {verifiedInvoices.map((invoice) => (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-mono text-sm">
+                            {invoice.invoiceId}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {invoice.supplier.slice(0, 8)}...{invoice.supplier.slice(-4)}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {invoice.buyer.slice(0, 8)}...{invoice.buyer.slice(-4)}
+                          </TableCell>
+                          <TableCell>${Number(invoice.creditAmount) / 1e6}</TableCell>
+                          <TableCell>
+                            {new Date(Number(invoice.dueDate) * 1000).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="default" className="bg-green-600">
+                              Verified
+                            </Badge>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {verifiedInvoices.map((invoice) => (
-                          <TableRow key={invoice.id} className="bg-green-50">
-                            <TableCell className="font-medium">
-                              #{invoice.invoiceId}
-                            </TableCell>
-                            <TableCell>{invoice.creditAmount ? (Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} USDC</TableCell>
-                            <TableCell>{invoice.dueDate ? new Date(Number(invoice.dueDate)).toLocaleDateString() : 'N/A'}</TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {invoice.supplier.slice(0, 6)}...{invoice.supplier.slice(-4)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="default" className="bg-green-100 text-green-800">
-                                Verified
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <a 
-                                href={invoice.gatewayUrl || `https://gateway.pinata.cloud/ipfs/${invoice.ipfsHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-500"
-                              >
-                                <FileText className="h-4 w-4" />
-                                View
-                              </a>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                      ))}
+                    </TableBody>
+                  </Table>
                 )}
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Withdraw button example (show only for contract owner) */}
-        {address?.toLowerCase() === CONTRACT_OWNER && (
-          <div className="mb-4">
-            <Button className="bg-green-700 hover:bg-green-800">Withdraw</Button>
-          </div>
-        )}
-      </div>
+      {/* Withdraw button example (show only for contract owner) */}
+      {address?.toLowerCase() === CONTRACT_OWNER && (
+        <div className="mb-4">
+          <Button className="bg-green-700 hover:bg-green-800">Withdraw</Button>
+        </div>
+      )}
     </div>
   );
 } 

@@ -88,7 +88,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const lpNavItems = [
     { name: 'Deposit', href: '/dashboard/lp/deposit' },
-    { name: 'Withdraw', href: '/dashboard/lp/withdraw' },
   ];
 
   const ownerNavItems = [

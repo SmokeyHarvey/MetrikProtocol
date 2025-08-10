@@ -20,6 +20,10 @@ export interface Invoice {
   ipfsHash: string;
   gatewayUrl?: string;
   isVerified: boolean;
+  // Optional fields for burned invoices
+  isBurned?: boolean;
+  burnTime?: Date;
+  burnReason?: string;
 }
 
 // New interface for historical invoice records (including burned ones)
@@ -204,11 +208,13 @@ export function useInvoiceNFT(address?: Address) {
           });
         } catch (err) {
           console.error(`useInvoiceNFT: Error fetching token/index ${i}:`, err);
-          // If we get an error, it might mean we've reached the end
-          if (i > Number(totalSupply)) {
-            console.log(`useInvoiceNFT: Stopping at index ${i} due to error`);
+          // If we get an ERC721OutOfBoundsIndex error, we've reached the end
+          if (err instanceof Error && err.message.includes('ERC721OutOfBoundsIndex')) {
+            console.log(`useInvoiceNFT: Reached end of tokens at index ${i}`);
             break;
           }
+          // For other errors, continue but don't break the loop
+          continue;
         }
       }
       setInvoices(invoicesArr);
@@ -399,6 +405,73 @@ export function useInvoiceNFT(address?: Address) {
       return userInvoicePromises;
     } catch (err) {
       console.error('Error fetching user invoices:', err);
+      setError(err as Error);
+      setUserInvoices([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [readClient, invoiceNFTContract.address, invoiceNFTContract.abi]);
+
+  // New function to fetch all user invoices (including burned ones)
+  const fetchAllUserInvoices = useCallback(async (userAddress: Address) => {
+    console.log('🔍 Fetching all user invoices (including burned) for:', userAddress);
+    
+    if (!readClient || !invoiceNFTContract.address || !invoiceNFTContract.abi || !userAddress) {
+      setUserInvoices([]);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Get all tokens ever minted by this user (including burned ones)
+      const userMintedTokens = await readClient.readContract({
+        address: invoiceNFTContract.address,
+        abi: invoiceNFTContract.abi,
+        functionName: 'getUserMintedTokens',
+        args: [userAddress],
+      }) as bigint[];
+
+      console.log('🔍 User minted tokens:', userMintedTokens);
+
+      const allUserInvoices: Invoice[] = [];
+
+      // Fetch historical records for each token (works for both active and burned)
+      for (const tokenId of userMintedTokens) {
+        try {
+          const historicalRecord = await readClient.readContract({
+            address: invoiceNFTContract.address,
+            abi: invoiceNFTContract.abi,
+            functionName: 'getHistoricalInvoiceRecord',
+            args: [tokenId],
+          }) as HistoricalInvoiceRecord;
+
+          if (historicalRecord && historicalRecord.tokenId !== 0n) {
+            allUserInvoices.push({
+              id: tokenId.toString(),
+              invoiceId: historicalRecord.invoiceId,
+              supplier: historicalRecord.supplier,
+              buyer: historicalRecord.buyer,
+              creditAmount: historicalRecord.creditAmount.toString(),
+              dueDate: new Date(Number(historicalRecord.dueDate) * 1000),
+              ipfsHash: historicalRecord.ipfsHash,
+              isVerified: historicalRecord.isVerified,
+              // Add burned status for UI display
+              isBurned: historicalRecord.isBurned,
+              burnTime: historicalRecord.burnTime ? new Date(Number(historicalRecord.burnTime) * 1000) : undefined,
+              burnReason: historicalRecord.burnReason
+            });
+          }
+        } catch (err) {
+          console.error(`Error fetching historical record for token ${tokenId}:`, err);
+        }
+      }
+
+      console.log('🔍 All user invoices (including burned):', allUserInvoices);
+      setUserInvoices(allUserInvoices);
+      
+    } catch (err) {
+      console.error('Error fetching all user invoices:', err);
       setError(err as Error);
       setUserInvoices([]);
     } finally {
@@ -807,5 +880,6 @@ export function useInvoiceNFT(address?: Address) {
     getUserBurnedTokens,
     searchInvoiceById,
     getUserHistoricalRecords,
+    fetchAllUserInvoices, // Add the new function to the return object
   };
 } 
