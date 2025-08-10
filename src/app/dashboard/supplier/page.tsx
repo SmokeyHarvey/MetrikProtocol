@@ -43,7 +43,7 @@ export default function SupplierDashboard() {
   // Hooks for data
   const { stakedAmount, currentTier, metrikBalance } = useStaking(address as `0x${string}`);
   const { outstandingLoans, repaymentStats } = useRepay(address as `0x${string}`);
-  const { userInvoices, fetchInvoices } = useInvoiceNFT(address as `0x${string}`);
+  const { userInvoices, fetchInvoices, fetchAllUserInvoices } = useInvoiceNFT(address as `0x${string}`);
   const { userLoans, activeLoans, borrowStats } = useBorrow(address as `0x${string}`);
   
   // Token balances
@@ -57,7 +57,7 @@ export default function SupplierDashboard() {
       if (address) {
         try {
           await Promise.all([
-            fetchInvoices(address as `0x${string}`),
+            fetchAllUserInvoices(address as `0x${string}`), // Use the new function to include burned invoices
             // The useStaking hook automatically fetches data on mount
           ]);
           // Simulate loading time for better UX
@@ -70,10 +70,12 @@ export default function SupplierDashboard() {
     };
 
     loadDashboardData();
-  }, [address, fetchInvoices]);
+  }, [address, fetchAllUserInvoices]);
 
   // Calculate dashboard stats
   const totalInvoices = userInvoices?.length || 0;
+  const activeInvoices = userInvoices?.filter(inv => !inv.isBurned).length || 0;
+  const burnedInvoices = userInvoices?.filter(inv => inv.isBurned).length || 0;
   const verifiedInvoices = userInvoices?.filter(inv => inv.isVerified).length || 0;
   const totalBorrowed = activeLoans?.reduce((sum, loan) => sum + Number(loan.amount), 0) || 0;
   const totalRepaid = borrowStats?.totalRepaid || 0;
@@ -234,9 +236,14 @@ export default function SupplierDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                {totalInvoices}
+                {activeInvoices}
               </div>
-              <p className="text-sm text-muted-foreground">Total invoices</p>
+              <p className="text-sm text-muted-foreground">Active invoices</p>
+              {burnedInvoices > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {burnedInvoices} completed • {totalInvoices} total
+                </p>
+              )}
             </CardContent>
           </Card>
         </Link>
@@ -668,13 +675,29 @@ export default function SupplierDashboard() {
                         <TableCell className="font-mono">#{invoice.invoiceId}</TableCell>
                         <TableCell>${(Number(invoice.creditAmount) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
                         <TableCell>
-                          <Badge variant={invoice.isVerified ? 'default' : 'secondary'}>
-                            {invoice.isVerified ? 'Verified' : 'Pending'}
-                          </Badge>
+                          <div className="flex gap-2">
+                            <Badge variant={invoice.isVerified ? 'default' : 'secondary'}>
+                              {invoice.isVerified ? 'Verified' : 'Pending'}
+                            </Badge>
+                            {invoice.isBurned && (
+                              <Badge variant="destructive">
+                                {invoice.burnReason === 'repayment' ? 'Repaid' : 'Burned'}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>{invoice.dueDate.toLocaleDateString()}</TableCell>
                         <TableCell>
-                          {invoice.isVerified ? (
+                          {invoice.isBurned ? (
+                            <span className="text-sm text-muted-foreground">
+                              {invoice.burnReason === 'repayment' ? 'Loan completed' : 'Invoice burned'}
+                              {invoice.burnTime && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {invoice.burnTime.toLocaleDateString()}
+                                </div>
+                              )}
+                            </span>
+                          ) : invoice.isVerified ? (
                             <Link href="/dashboard/supplier/borrow">
                               <Button size="sm" variant="outline">
                                 Borrow

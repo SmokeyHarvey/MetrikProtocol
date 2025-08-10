@@ -42,7 +42,8 @@ export function useStaking(addressOverride?: string) {
   // Use override if provided, else embedded wallet, else Wagmi address
   const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
   const address = addressOverride || privyWallet?.address || wagmiAddress;
-  const isPrivy = !!(addressOverride || privyWallet?.address);
+  // Only use Privy if we have a Privy wallet, not if we have an address override (which could be MetaMask)
+  const isPrivy = !!privyWallet?.address;
 
   const [stakedAmount, setStakedAmount] = useState<string>('0');
   const [rewards, setRewards] = useState<string>('0');
