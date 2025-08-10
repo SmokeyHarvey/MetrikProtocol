@@ -8,18 +8,63 @@ import { SupplierLoginButton } from '../components/borrow/SupplierLoginButton';
 import { usePrivy } from '@privy-io/react-auth';
 
 
+const roles = [
+  {
+    id: 'supplier',
+    title: 'Invoice Supplier',
+    description: 'Upload invoices and get instant financing',
+    features: ['Instant liquidity', 'No credit checks', 'Keep customer relationships'],
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'lp',
+    title: 'Liquidity Provider',
+    description: 'Provide capital and earn competitive returns',
+    features: ['12-18% APY', 'Real asset backing', 'Flexible withdrawals'],
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'verifier',
+    title: 'Protocol Verifier',
+    description: 'Verify invoices and secure the network',
+    features: ['Verification rewards', 'Protocol governance', 'Risk management'],
+    icon: (
+      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+  },
+];
 
 export default function Home() {
   const router = useRouter();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   const { authenticated, logout, user, ready } = usePrivy();
   const [selectedRole, setSelectedRole] = useState<'supplier' | 'lp' | 'verifier' | null>(null);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const handleRoleSelect = (role: 'supplier' | 'lp' | 'verifier') => {
     setSelectedRole(role);
+    setShowWelcome(false);
     if (typeof window !== 'undefined') {
       localStorage.setItem('selectedRole', role);
+    }
+  };
+
+  const handleBackToRoleSelection = () => {
+    setSelectedRole(null);
+    setShowWelcome(true);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('selectedRole');
     }
   };
 
@@ -27,11 +72,10 @@ export default function Home() {
     try {
       await logout();
       setSelectedRole(null);
+      setShowWelcome(true);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('selectedRole');
-        // Clear any other session data
         sessionStorage.clear();
-        // Clear any cached wallet data
         if (window.ethereum) {
           try {
             await (window.ethereum as any).request({ method: 'wallet_requestPermissions', params: [] });
@@ -48,21 +92,21 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedRole = localStorage.getItem('selectedRole');
-      if (storedRole) setSelectedRole(storedRole as 'supplier' | 'lp' | 'verifier');
+      if (storedRole) {
+        setSelectedRole(storedRole as 'supplier' | 'lp' | 'verifier');
+        setShowWelcome(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (authenticated && selectedRole === 'supplier' && !isRedirecting) {
-      console.log('Redirecting to supplier dashboard - authenticated:', authenticated, 'selectedRole:', selectedRole);
       setIsRedirecting(true);
       router.push('/dashboard/supplier');
       if (typeof window !== 'undefined') {
         localStorage.removeItem('selectedRole');
       }
     } else if (authenticated && !selectedRole && !isRedirecting) {
-      // If user is authenticated but no role is selected, assume supplier
-      console.log('User authenticated but no role selected, setting as supplier');
       setSelectedRole('supplier');
       if (typeof window !== 'undefined') {
         localStorage.setItem('selectedRole', 'supplier');
@@ -84,182 +128,461 @@ export default function Home() {
     }
   }, [authenticated, isConnected, selectedRole, router, isRedirecting]);
 
-  // Reset redirecting state after timeout
   useEffect(() => {
     if (isRedirecting) {
       const timeout = setTimeout(() => {
-        console.log('Redirect timeout, resetting state');
         setIsRedirecting(false);
-      }, 10000); // 10 second timeout
-      
+      }, 10000);
       return () => clearTimeout(timeout);
     }
   }, [isRedirecting]);
 
-  // Debug logging
-  useEffect(() => {
-    console.log('Auth state changed:', {
-      authenticated,
-      selectedRole,
-      isConnected,
-      user: user?.email?.address
-    });
-  }, [authenticated, selectedRole, isConnected, user]);
+  const selectedRoleData = roles.find(role => role.id === selectedRole);
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-600 border-t-[#ff5c00] rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-sm">Initializing...</p>
+        </div>
+      </div>
+    );
+  }
 
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-600 border-t-[#ff5c00] rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-sm">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-2xl w-full space-y-8 text-center">
-        {/* Logout section for authenticated suppliers */}
-        {authenticated && (
-          <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="text-left">
-                <p className="text-sm text-gray-600">Logged in as:</p>
-                <p className="font-medium text-gray-900">{user?.email?.address || 'Supplier'}</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with curved bottom */}
+      <div className="relative bg-white shadow-sm">
+        <div className="absolute inset-0 bg-gradient-to-r from-[#ff5c00] to-orange-600 opacity-5"></div>
+        <div className="relative px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-[#ff5c00] to-orange-600 rounded-2xl flex items-center justify-center">
+                <span className="text-white font-bold text-xl">M</span>
               </div>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-md text-sm font-medium transition-colors"
-              >
-                Switch Account
-              </button>
-            </div>
-            <div className="mt-3 text-xs text-gray-500 bg-gray-50 p-2 rounded">
-              <p><strong>Note:</strong> If you&apos;re still seeing the same wallet address after switching accounts, try:</p>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                              <li>Clear your browser&apos;s local storage and cookies</li>
-              <li>Use an incognito/private browser window</li>
-              <li>Wait a few seconds after logging out before logging in with a different email</li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Loading indicator for authentication */}
-        {!ready && (
-          <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-            <div className="flex items-center justify-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
-              <span className="text-sm text-gray-600">Initializing authentication...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Redirecting indicator */}
-        {isRedirecting && (
-          <div className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-            <div className="flex items-center justify-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-              <span className="text-sm text-gray-600">Redirecting to dashboard...</span>
-            </div>
-          </div>
-        )}
-
-        {/* Manual redirect button for stuck authentication */}
-        {authenticated && selectedRole === 'supplier' && !isRedirecting && (
-          <div className="bg-yellow-50 p-4 rounded-lg shadow-md border border-yellow-200">
-            <div className="flex items-center justify-between">
-              <div className="text-left">
-                <p className="text-sm text-yellow-800">Authentication successful!</p>
-                <p className="text-xs text-yellow-600">If you&apos;re not redirected automatically, click the button below.</p>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Metrik Protocol</h1>
+                <p className="text-gray-600">Decentralized Invoice Financing</p>
               </div>
-              <button
-                onClick={() => {
-                  setIsRedirecting(true);
-                  router.push('/dashboard/supplier');
-                }}
-                className="px-4 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-md text-sm font-medium transition-colors"
-              >
-                Go to Dashboard
-              </button>
             </div>
-          </div>
-        )}
 
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Metrik Protocol
-          </h1>
-          <p className="mt-4 text-lg text-gray-600">
-            Decentralized invoice financing and lending platform
-          </p>
+            {authenticated && (
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-500">{user?.email?.address}</span>
+                <button
+                  onClick={handleLogout}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Switch Account
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+        {/* Curved bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gray-50" style={{
+          clipPath: 'ellipse(100% 100% at 50% 0%)'
+        }}></div>
+      </div>
 
-        <div className="bg-white p-8 rounded-lg shadow-lg space-y-6">
-          <div className="space-y-6">
-            <p className="text-gray-600">Select your role to continue</p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <button
-                onClick={() => handleRoleSelect('supplier')}
-                className={`group relative flex flex-col items-center p-6 bg-white border ${
-                  selectedRole === 'supplier' 
-                    ? 'border-indigo-500 ring-2 ring-indigo-500' 
-                    : 'border-gray-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500'
-                } rounded-lg transition-all`}
-              >
-                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+      <div className="flex">
+        {/* Left Side - Visual Story */}
+        <div className="flex-1 p-8">
+          <div className="max-w-4xl mx-auto h-full flex items-center">
+            {showWelcome ? (
+              <div className="w-full">
+                {/* Hero Section */}
+                <div className="text-center mb-16">
+                  <h1 className="text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                    Transform Your Invoices Into
+                    <span className="text-[#ff5c00]"> Instant Liquidity</span>
+                  </h1>
+                  <p className="text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+                    Join the future of decentralized invoice financing. Get paid instantly, earn yield, or secure the network.
+                  </p>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">Supplier</h3>
-                <p className="mt-2 text-sm text-gray-500">Create and manage invoices</p>
-              </button>
 
-              <button
-                onClick={() => handleRoleSelect('lp')}
-                className={`group relative flex flex-col items-center p-6 bg-white border ${
-                  selectedRole === 'lp' 
-                    ? 'border-indigo-500 ring-2 ring-indigo-500' 
-                    : 'border-gray-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500'
-                } rounded-lg transition-all`}
-              >
-                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+                {/* Visual Dashboard Mockup */}
+                <div className="bg-white rounded-3xl shadow-2xl p-8 border border-gray-100 max-w-4xl mx-auto">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 bg-[#ff5c00] rounded-2xl flex items-center justify-center">
+                        <span className="text-white font-bold">M</span>
+                      </div>
+                      <div>
+                        <div className="h-4 bg-gray-200 rounded w-32 mb-2"></div>
+                        <div className="h-3 bg-gray-100 rounded w-24"></div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                      <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                      <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-6 mb-8">
+                    <div className="bg-gradient-to-br from-[#ff5c00]/10 to-orange-100 rounded-2xl p-6">
+                      <div className="w-10 h-10 bg-[#ff5c00] rounded-xl mb-4"></div>
+                      <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-100 rounded w-2/3"></div>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl p-6">
+                      <div className="w-10 h-10 bg-gray-200 rounded-xl mb-4"></div>
+                      <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-100 rounded w-2/3"></div>
+                    </div>
+                    <div className="bg-gray-50 rounded-2xl p-6">
+                      <div className="w-10 h-10 bg-gray-200 rounded-xl mb-4"></div>
+                      <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-4 bg-gray-100 rounded w-2/3"></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="h-5 bg-gray-200 rounded w-32"></div>
+                      <div className="w-8 h-8 bg-[#ff5c00] rounded-full flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="h-3 bg-gray-200 rounded"></div>
+                      <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                      <div className="h-3 bg-gray-200 rounded w-3/5"></div>
+                    </div>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">Liquidity Provider</h3>
-                <p className="mt-2 text-sm text-gray-500">Provide liquidity and earn interest</p>
-              </button>
 
-              <button
-                onClick={() => handleRoleSelect('verifier')}
-                className={`group relative flex flex-col items-center p-6 bg-white border ${
-                  selectedRole === 'verifier' 
-                    ? 'border-indigo-500 ring-2 ring-indigo-500' 
-                    : 'border-gray-200 hover:border-indigo-500 hover:ring-2 hover:ring-indigo-500'
-                } rounded-lg transition-all`}
-              >
-                <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
-                  <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
+                {/* Stats */}
+                <div className="grid grid-cols-4 gap-8 mt-16 max-w-4xl mx-auto">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-[#ff5c00] mb-2">$2.4M+</div>
+                    <div className="text-gray-600">Total Volume</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-[#ff5c00] mb-2">24h</div>
+                    <div className="text-gray-600">Avg. Funding</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-[#ff5c00] mb-2">15.2%</div>
+                    <div className="text-gray-600">LP APY</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-[#ff5c00] mb-2">99.8%</div>
+                    <div className="text-gray-600">Success Rate</div>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900">Verifier</h3>
-                <p className="mt-2 text-sm text-gray-500">Verify invoices and manage protocol</p>
-              </button>
-            </div>
+              </div>
+            ) : selectedRoleData && (
+              <div className="w-full text-center">
+                <button
+                  onClick={handleBackToRoleSelection}
+                  className="inline-flex items-center text-gray-500 hover:text-gray-700 mb-12 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Back to role selection
+                </button>
 
-            {selectedRole && (
-              <div className="space-y-4">
-                <p className="text-gray-600">Now connect your wallet to continue as a {selectedRole}</p>
-                <div className="flex justify-center">
-                  {selectedRole === 'supplier' ? (
-                    <SupplierLoginButton />
-                  ) : (
-                  <ConnectButton />
-                  )}
+                <div className="max-w-2xl mx-auto">
+                  <div className="w-32 h-32 bg-gradient-to-br from-[#ff5c00] to-orange-600 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                    <img
+                      src={`/${selectedRole === 'supplier' ? 'customer' : selectedRole}.png`}
+                      alt={selectedRoleData.title}
+                      className="w-20 h-20 object-contain"
+                    />
+                  </div>
+
+                  <h1 className="text-5xl font-bold text-gray-900 mb-6 leading-tight">
+                    Ready to connect as
+                    <br />
+                    <span className="text-[#ff5c00]">{selectedRoleData.title}</span>?
+                  </h1>
+
+                  <p className="text-2xl text-gray-600 mb-12 leading-relaxed">
+                    {selectedRoleData.description}
+                  </p>
+
+                  {/* Large Role Illustration */}
+                  <div className="bg-white rounded-3xl shadow-xl p-12 border border-gray-100">
+                    <img
+                      src={`/${selectedRole === 'supplier' ? 'customer' : selectedRole}.png`}
+                      alt={selectedRoleData.title}
+                      className="w-full h-64 object-contain rounded-2xl"
+                    />
+                  </div>
                 </div>
               </div>
             )}
+          </div>
+        </div>
 
+        {/* Right Sidebar - Role Selection */}
+        <div className="w-96 bg-white flex-1 border-l border-gray-100 p-8">
+          <div className="h-full flex flex-col">
+            {showWelcome ? (
+              <>
+                {/* Header */}
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                    Choose Your Role
+                  </h2>
+                  <p className="text-gray-600">
+                    Select how you want to participate in the protocol
+                  </p>
+                </div>
 
+                {/* Role Cards */}
+                <div className="flex-1 space-y-4">
+                  {roles.map((role, index) => {
+                    const roleImage = role.id === 'supplier' ? 'customer' : role.id;
+                    return (
+                      <button
+                        key={role.id}
+                        onClick={() => handleRoleSelect(role.id as 'supplier' | 'lp' | 'verifier')}
+                        className="w-full group relative overflow-hidden"
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                        <div className="bg-white border-2 border-gray-100 group-hover:border-[#ff5c00] rounded-3xl p-6 transition-all duration-300 group-hover:shadow-lg">
+                          <div className="flex items-start space-x-4">
+                            {/* Role Image */}
+                            <div className="relative flex-shrink-0">
+                              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-gray-50 group-hover:scale-110 transition-transform duration-300">
+                                <img
+                                  src={`/${roleImage}.png`}
+                                  alt={role.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              {/* Selection Indicator */}
+                              <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#ff5c00] rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 text-left">
+                              <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-[#ff5c00] transition-colors duration-300">
+                                {role.title}
+                              </h3>
+                              <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                                {role.description}
+                              </p>
+
+                              {/* Features */}
+                              <div className="space-y-1">
+                                {role.features.slice(0, 2).map((feature, idx) => (
+                                  <div key={idx} className="flex items-center text-xs text-gray-500">
+                                    <div className="w-1 h-1 bg-[#ff5c00] rounded-full mr-2"></div>
+                                    {feature}
+                                  </div>
+                                ))}
+                                {role.features.length > 2 && (
+                                  <div className="text-xs text-gray-400">
+                                    +{role.features.length - 2} more benefits
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Arrow */}
+                            <div className="flex-shrink-0 self-center">
+                              <div className="w-6 h-6 rounded-full bg-gray-100 group-hover:bg-[#ff5c00] flex items-center justify-center transition-all duration-300">
+                                <svg className="w-3 h-3 text-gray-400 group-hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Trust Indicators */}
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <div className="text-center">
+                    <div className="flex items-center justify-center space-x-4 text-xs text-gray-500 mb-3">
+                      <div className="flex items-center space-x-1">
+                        <svg className="w-3 h-3 text-[#ff5c00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span>Secure</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <svg className="w-3 h-3 text-[#ff5c00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <span>Fast</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <svg className="w-3 h-3 text-[#ff5c00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>Trusted</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400">Trusted by 1000+ users worldwide</p>
+                  </div>
+                </div>
+              </>
+            ) : selectedRoleData && (
+              <>
+                {/* Connection Header */}
+                <div className="mb-8">
+                  <div className="w-20 h-20 bg-gradient-to-br from-[#ff5c00] to-orange-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <img
+                      src={`/${selectedRole === 'supplier' ? 'customer' : selectedRole}.png`}
+                      alt={selectedRoleData.title}
+                      className="w-12 h-12 object-contain"
+                    />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-3 text-center">
+                    Connect Wallet
+                  </h2>
+                  <p className="text-gray-600 text-center">
+                    Connect your wallet to continue as a {selectedRoleData.title.toLowerCase()}
+                  </p>
+                </div>
+
+                {/* Benefits */}
+                <div className="flex-1 mb-8">
+                  <div className="bg-gray-50 rounded-3xl p-6 mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-4">What you'll get:</h3>
+                    <div className="space-y-3">
+                      {selectedRoleData.features.map((feature, idx) => (
+                        <div key={idx} className="flex items-center">
+                          <div className="w-5 h-5 bg-[#ff5c00] rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                          <span className="text-gray-800 font-medium">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Connect Button */}
+                <div className="mb-6">
+                  <div className="relative group">
+                    {/* Glow Effect */}
+                    <div className="absolute -inset-1 bg-gradient-to-r from-[#ff5c00] to-orange-600 rounded-3xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
+
+                    {/* Custom Button */}
+                    <button
+                      onClick={() => {
+                        const hiddenButton = document.querySelector('.hidden-connect-btn button') as HTMLButtonElement;
+                        if (hiddenButton) {
+                          hiddenButton.click();
+                        }
+                      }}
+                      className="relative w-full py-4 px-6 bg-gradient-to-r from-[#ff5c00] to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold text-lg rounded-3xl shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center space-x-3"
+                    >
+                      {/* Icon */}
+                      <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                        {selectedRole === 'supplier' ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Text */}
+                      <span>
+                        {selectedRole === 'supplier' && 'Connect & Start Earning'}
+                        {selectedRole === 'lp' && 'Connect & Provide Liquidity'}
+                        {selectedRole === 'verifier' && 'Connect & Start Verifying'}
+                      </span>
+
+                      {/* Arrow */}
+                      <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </button>
+
+                    {/* Hidden original buttons for functionality */}
+                    <div className="hidden hidden-connect-btn">
+                      {selectedRole === 'supplier' ? (
+                        <SupplierLoginButton />
+                      ) : (
+                        <ConnectButton />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Security Info */}
+                <div className="text-center">
+                  <div className="flex items-center justify-center space-x-4 text-xs text-gray-500">
+                    <div className="flex items-center space-x-1">
+                      <svg className="w-3 h-3 text-[#ff5c00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span>256-bit SSL</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <svg className="w-3 h-3 text-[#ff5c00]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Audited Contracts</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Manual redirect for stuck authentication */}
+                {authenticated && selectedRole === 'supplier' && !isRedirecting && (
+                  <div className="mt-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-3xl p-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h3 className="font-bold text-green-800 mb-2">Ready to go!</h3>
+                      <p className="text-sm text-green-600 mb-4">Your wallet is connected</p>
+                      <button
+                        onClick={() => {
+                          setIsRedirecting(true);
+                          router.push('/dashboard/supplier');
+                        }}
+                        className="w-full py-3 bg-[#ff5c00] text-white rounded-2xl font-semibold hover:bg-orange-600 transition-colors"
+                      >
+                        Enter Dashboard →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
+
