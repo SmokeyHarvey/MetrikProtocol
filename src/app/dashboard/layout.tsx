@@ -8,6 +8,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { toast } from 'react-toastify';
 import { useTokenBalance } from '@/hooks/useTokenBalance';
+import Sidebar from '@/components/layout/Sidebar';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -78,29 +79,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  const supplierNavItems = [
-    { name: 'Dashboard', href: '/dashboard/supplier' },
-    { name: 'Staking', href: '/dashboard/supplier/staking' },
-    { name: 'Invoice', href: '/dashboard/supplier/invoice' },
-    { name: 'Borrow', href: '/dashboard/supplier/borrow' },
-    { name: 'Repay', href: '/dashboard/supplier/repay' },
-  ];
-
-  const lpNavItems = [
-    { name: 'Deposit', href: '/dashboard/lp/deposit' },
-  ];
-
-  const ownerNavItems = [
-    { name: 'Verify Invoices', href: '/dashboard/owner' },
-  ];
-
-  const navItems = role === 'supplier' ? supplierNavItems 
-    : role === 'lp' ? lpNavItems 
-    : ownerNavItems;
+  // Sidebar now renders the navigation items by role
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="bg-white shadow-sm sticky top-0 z-40 rounded-lg global-shadow mx-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
@@ -109,21 +92,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   Metrik Protocol
                 </Link>
               </div>
-              <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                      pathname === item.href
-                        ? 'border-indigo-500 text-gray-900'
-                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
+              {/* Section tabs have moved to the sidebar */}
             </div>
 
             <div className="flex items-center gap-4">
@@ -161,9 +130,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {children}
-      </main>
+      <div className="max-w-full mx-auto sm:px-6 lg:px-8">
+        <div className="flex gap-6">
+          <Sidebar />
+          <main className="flex-1 py-6">
+            {children}
+          </main>
+        </div>
+      </div>
     </div>
   );
 } 
