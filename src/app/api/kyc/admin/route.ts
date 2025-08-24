@@ -14,14 +14,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, id, reason } = body as { action: 'approve' | 'reject'; id: string; reason?: string };
     if (!action || !id) return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    const normalizedId = String(id).trim().toLowerCase().replace(/^<|>$/g, '');
 
     if (action === 'reject') {
-      const rec = await upsertKyc({ id, kycStatus: 'rejected', rejectionReason: reason || 'Not specified' });
+      const rec = await upsertKyc({ id: normalizedId, kycStatus: 'rejected', rejectionReason: reason || 'Not specified' });
       return NextResponse.json({ success: true, record: rec });
     }
 
     // Approve: issue a simple VC-like signed JWT (dev-only)
-    const rec = await getKyc(id);
+    const rec = await getKyc(normalizedId);
     const wallet = rec?.walletAddress || id;
     const issuer = process.env.ZKYC_ISSUER_DID || 'did:metrik:issuer';
     const secret = new TextEncoder().encode(process.env.ZKYC_ISSUER_SECRET || 'dev-secret-change-me');
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .sign(secret);
 
-    const updated = await upsertKyc({ id, kycStatus: 'verified', verifiableCredential: { jwt, payload: vcPayload } });
+    const updated = await upsertKyc({ id: normalizedId, kycStatus: 'verified', verifiableCredential: { jwt, payload: vcPayload } });
     return NextResponse.json({ success: true, record: updated });
   } catch (error) {
     console.error('KYC admin error', error);

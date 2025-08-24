@@ -8,6 +8,11 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Home, LayoutDashboard, Shield, FileText, Banknote, RotateCcw, Menu, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
+import { useAccount } from 'wagmi';
+import { useKyc } from '@/hooks/useKyc';
+import { useStaking } from '@/hooks/useStaking';
+import { useInvoiceNFT } from '@/hooks/useInvoiceNFT';
+import { useBorrow } from '@/hooks/useBorrow';
 
 type NavItem = {
     key: string;
@@ -50,6 +55,25 @@ export default function Sidebar() {
 
     const navItems = role === 'supplier' ? getSupplierNav() : role === 'lp' ? getLpNav() : getOwnerNav();
 
+    // Supplier onboarding hints
+    const { address } = useAccount();
+    const { status: kycStatus } = useKyc();
+    const { stakedAmount } = useStaking(address as `0x${string}` | undefined);
+    const { userInvoices } = useInvoiceNFT(address as `0x${string}` | undefined);
+    const { activeLoans } = useBorrow(address as `0x${string}` | undefined);
+
+    const hints: Record<string, { text: string; step: number } | undefined> = React.useMemo(() => {
+        if (role !== 'supplier') return {};
+        if (kycStatus !== 'verified') return { dashboard: { text: 'Step 1: Complete KYC from the banner', step: 1 } };
+        const hasStake = !!stakedAmount && parseFloat(String(stakedAmount)) > 0;
+        const hasInvoice = (userInvoices?.length || 0) > 0;
+        const hasLoan = (activeLoans?.length || 0) > 0;
+        if (!hasStake) return { staking: { text: 'Step 2: Stake METRIK to begin', step: 2 } };
+        if (!hasInvoice) return { invoice: { text: 'Step 3: Create your first invoice', step: 3 } };
+        if (!hasLoan) return { borrow: { text: 'Step 4: Borrow against your invoice', step: 4 } };
+        return { repay: { text: 'Step 5: Manage repayments', step: 5 } };
+    }, [role, kycStatus, stakedAmount, userInvoices, activeLoans]);
+
     const [isOpen, setIsOpen] = React.useState<boolean>(() => {
         if (typeof window === 'undefined') return true;
         const saved = window.localStorage.getItem('sidebar:open');
@@ -59,8 +83,10 @@ export default function Sidebar() {
     React.useEffect(() => {
         if (typeof window !== 'undefined') {
             window.localStorage.setItem('sidebar:open', isOpen ? '1' : '0');
+            // Expose hints for tooltip content in NavList
+            (window as any).__sidebarHints = hints;
         }
-    }, [isOpen]);
+    }, [isOpen, hints]);
 
     return (
         <>
@@ -110,6 +136,11 @@ function NavList({ items, expanded = true }: { items: NavItem[]; expanded?: bool
                 const isActive = isBaseSection
                     ? pathname === item.href
                     : pathname === item.href || (pathname && pathname.startsWith(item.href + '/'));
+                const globalHints = (
+                    typeof window !== 'undefined' &&
+                    ((window as unknown as { __sidebarHints?: Record<string, { text: string; step: number } | undefined> }).__sidebarHints)
+                ) || {};
+                const hint = globalHints[item.key];
                 return (
                     <Tooltip key={item.key}>
                         <TooltipTrigger asChild>
@@ -137,9 +168,17 @@ function NavList({ items, expanded = true }: { items: NavItem[]; expanded?: bool
                                         {item.label}
                                     </span>
                                 </span>
+                                {/* No inline badges for a cleaner sidebar; hints only in tooltip */}
                             </Link>
                         </TooltipTrigger>
-                        {!expanded ? <TooltipContent side="right">{item.label}</TooltipContent> : null}
+                        {!expanded ? (
+                            <TooltipContent side="right">
+                                <div className="max-w-[220px]">
+                                    <div className="font-medium mb-0.5">{item.label}</div>
+                                    {hint ? <div className="text-xs opacity-90">{hint.text}</div> : null}
+                                </div>
+                            </TooltipContent>
+                        ) : null}
                     </Tooltip>
                 );
             })}

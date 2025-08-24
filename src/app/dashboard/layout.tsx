@@ -9,6 +9,9 @@ import { usePrivy, useWallets } from '@privy-io/react-auth';
 import { toast } from 'react-toastify';
 import { useTokenBalance } from '@/hooks/useTokenBalance';
 import Sidebar from '@/components/layout/Sidebar';
+import { useKyc } from '@/hooks/useKyc';
+import dynamic from 'next/dynamic';
+const KycModal = dynamic(() => import('@/components/kyc/KycModal'), { ssr: false });
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -19,6 +22,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { isConnected } = useAccount();
   const { ready, authenticated, logout } = usePrivy();
   const pathname = usePathname();
+  const { status: kycStatus } = useKyc();
 
   const { wallets } = useWallets();
   const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
@@ -49,6 +53,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         router.push('/');
         return;
       }
+
+      // Gate supplier routes by KYC status
+      const base = '/dashboard/supplier';
+      const isBase = pathname === base;
+      const isChild = pathname && pathname.startsWith(base) && pathname !== base;
+      if (isChild && kycStatus !== 'verified') {
+        router.replace(base);
+        const msg = kycStatus === 'not_submitted'
+          ? 'Access restricted: submit KYC to continue. You can only view the dashboard until verification.'
+          : 'Access restricted while KYC is pending review. You can only view the dashboard.';
+        toast.info(msg);
+        return;
+      }
     } else {
     if (!isConnected) {
       console.log('Non-supplier not connected, redirecting to home');
@@ -62,7 +79,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       router.push('/');
       return;
     }
-  }, [isConnected, role, router, pathname, ready, authenticated]);
+  }, [isConnected, role, router, pathname, ready, authenticated, kycStatus]);
 
   if ((role === 'supplier' && (!ready || !authenticated)) || (role !== 'supplier' && !isConnected) || !role) {
     return null;
@@ -135,6 +152,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <Sidebar />
           <main className="flex-1 py-6">
             {children}
+            <KycModal />
           </main>
         </div>
       </div>

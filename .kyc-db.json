@@ -42,5 +42,63 @@
         }
       }
     }
+  },
+  {
+    "id": "0xf96ab9f5a6bca87eecad0214a00dab9702720d2d",
+    "walletAddress": "0xf96ab9f5a6bca87eecad0214a00dab9702720d2d",
+    "companyName": "Citrea Technologies",
+    "createdAt": 1756036567585,
+    "updatedAt": 1756038901705,
+    "kycStatus": "verified",
+    "documentPaths": [],
+    "documentUrls": [
+      "https://tdjwmdgolowadwjdoequ.supabase.co/storage/v1/object/public/kyc/citrea-technologies/1756038832261-docs01.png"
+    ],
+    "imageUrls": [
+      "https://tdjwmdgolowadwjdoequ.supabase.co/storage/v1/object/public/kyc/citrea-technologies/images/1756038834073-Image%205.png"
+    ],
+    "rejectionReason": "Manual reset",
+    "verifiableCredential": {
+      "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkaWQ6bWV0cmlrOmlzc3VlciIsInN1YiI6ImRpZDpwa2g6ZWlwMTU1OjE6MHhmOTZhYjlmNWE2YmNhODdlZWNhZDAyMTRhMDBkYWI5NzAyNzIwZDJkIiwiaWF0IjoxNzU2MDM4OTAxLCJtZXRyaWsiOnsia3ljVmVyaWZpZWQiOnRydWUsInZlcmlmaWVkQnkiOiJQcm90b2NvbFZlcmlmaWVyIn19.FonZCLVlJGvf4oW6BdEBoDmtPpYwkLrbT9PvqrG7Lf8",
+      "payload": {
+        "iss": "did:metrik:issuer",
+        "sub": "did:pkh:eip155:1:0xf96ab9f5a6bca87eecad0214a00dab9702720d2d",
+        "iat": 1756038901,
+        "metrik": {
+          "kycVerified": true,
+          "verifiedBy": "ProtocolVerifier"
+        }
+      }
+    }
+  },
+  {
+    "id": "<wallet_or_email>",
+    "createdAt": 1756038460281,
+    "updatedAt": 1756038460281,
+    "kycStatus": "rejected",
+    "documentPaths": [],
+    "documentUrls": [],
+    "imageUrls": [],
+    "rejectionReason": "Manual reset"
+  },
+  {
+    "id": "<wapeci1242@ahanim.com>",
+    "createdAt": 1756038537428,
+    "updatedAt": 1756038537428,
+    "kycStatus": "rejected",
+    "documentPaths": [],
+    "documentUrls": [],
+    "imageUrls": [],
+    "rejectionReason": "Manual reset"
+  },
+  {
+    "id": "<0xf96Ab9F5a6bCa87eEcAd0214A00dAb9702720d2D>",
+    "createdAt": 1756038575027,
+    "updatedAt": 1756038575027,
+    "kycStatus": "rejected",
+    "documentPaths": [],
+    "documentUrls": [],
+    "imageUrls": [],
+    "rejectionReason": "Manual reset"
   }
 ]

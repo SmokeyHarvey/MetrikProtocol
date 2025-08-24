@@ -276,7 +276,7 @@ export default function OwnerDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
+                  <TableHead>Business</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Documents</TableHead>
                   <TableHead>Updated</TableHead>
@@ -286,8 +286,9 @@ export default function OwnerDashboard() {
               <TableBody>
                 {kycPending.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">
-                      <div className="flex items-center gap-2">
+                    <TableCell className="text-sm">
+                      <div className="font-semibold">{(r as any).companyName || '—'}</div>
+                      <div className="font-mono text-xs text-gray-600 flex items-center gap-2">
                         <span>{r.id.length > 20 ? `${r.id.slice(0, 8)}...${r.id.slice(-4)}` : r.id}</span>
                         <button
                           onClick={() => navigator.clipboard.writeText(r.id)}
@@ -298,9 +299,20 @@ export default function OwnerDashboard() {
                         </button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{r.email || '-'}</TableCell>
-                    <TableCell className="text-sm">{r.documentPaths?.length || 0}</TableCell>
-                    <TableCell className="text-sm">{new Date(r.updatedAt).toLocaleString()}</TableCell>
+                    <TableCell className="text-sm">{(r as any).email || '-'}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        {((r as any).imageUrls || []).slice(0,4).map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" className="block w-12 h-12 rounded overflow-hidden border">
+                            <img src={url} alt="doc" className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                        {((r as any).documentUrls || []).slice(0,2).map((url: string, idx: number) => (
+                          <a key={`doc-${idx}`} href={url} target="_blank" className="text-xs underline text-indigo-600">PDF {idx+1}</a>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{new Date((r as any).updatedAt).toLocaleString()}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button

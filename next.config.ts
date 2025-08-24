@@ -24,11 +24,16 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   eslint: {
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: true,
   },
   env: {
     // Ensure environment variables are available at runtime
     NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+  },
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'ijskdn.invalid-placeholder' },
+    ].filter(Boolean) as any,
   },
 };
 

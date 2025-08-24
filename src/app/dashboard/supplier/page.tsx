@@ -207,12 +207,43 @@ export default function SupplierDashboard() {
         </div>
       </div>
 
-      {/* KYC banner */}
-      {kycStatus !== 'verified' && (
-        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-800">
-          <div className="font-medium">Complete verification to use all features</div>
-          <div className="text-sm mt-1">Status: {kycStatus.replace('_', ' ')}</div>
-          <Link href="/verification-status" className="inline-block mt-2 text-sm text-indigo-600 underline">View status / submit documents</Link>
+      {/* KYC status card with step guidance */}
+      {kycStatus !== 'verified' ? (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-amber-900 font-semibold">Getting started</div>
+              <div className="text-amber-800 text-sm mt-1">
+                {kycStatus === 'not_submitted' && 'Step 1: Submit your KYC to unlock staking, invoicing, borrow and repay.'}
+                {kycStatus === 'pending_review' && 'Your KYC is under review. You can browse the dashboard while we verify.'}
+                {kycStatus === 'rejected' && 'Your KYC was rejected. Please resubmit your documents.'}
+              </div>
+              <ol className="mt-3 ml-4 list-decimal text-sm text-amber-900 space-y-1">
+                <li>Open the KYC modal and upload business documents</li>
+                <li>We review and approve (usually a few minutes)</li>
+                <li>Once verified, proceed to Stake → Invoice → Borrow → Repay</li>
+              </ol>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-medium text-amber-700">Status</div>
+              <div className="text-sm capitalize">{kycStatus.replace('_',' ')}</div>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('open-kyc-modal'))}
+                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-md bg-indigo-600 text-white text-xs hover:bg-indigo-700"
+              >
+                Open KYC modal
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-emerald-800">
+          <span className="relative inline-flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-600"></span>
+          </span>
+          <span className="font-medium">Verified</span>
+          <span className="text-sm">You can now Stake → create Invoices → Borrow → Repay. Tooltips will guide you.</span>
         </div>
       )}
 

@@ -10,10 +10,13 @@ export interface KycRecord {
   id: string; // address or email-based id
   email?: string;
   walletAddress?: string;
+  companyName?: string;
   createdAt: number;
   updatedAt: number;
   kycStatus: KycStatus;
   documentPaths: string[]; // server-side storage paths or IPFS CIDs (dev only)
+  documentUrls?: string[]; // Firebase URLs
+  imageUrls?: string[]; // Firebase URLs for captured images
   rejectionReason?: string;
   verifiableCredential?: any; // issued VC JSON
 }
@@ -46,21 +49,26 @@ async function persist() {
 
 export async function getKyc(id: string): Promise<KycRecord | null> {
   await load();
-  return records.get(id) || null;
+  const key = id.trim().toLowerCase();
+  return records.get(key) || null;
 }
 
 export async function upsertKyc(input: Partial<KycRecord> & { id: string }): Promise<KycRecord> {
   await load();
-  const existing = records.get(input.id);
+  const id = input.id.trim().toLowerCase();
+  const existing = records.get(id);
   const now = Date.now();
   const next: KycRecord = {
-    id: input.id,
+    id,
     email: input.email ?? existing?.email,
     walletAddress: input.walletAddress ?? existing?.walletAddress,
+    companyName: input.companyName ?? existing?.companyName,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     kycStatus: (input.kycStatus ?? existing?.kycStatus ?? 'not_submitted') as KycStatus,
     documentPaths: input.documentPaths ?? existing?.documentPaths ?? [],
+    documentUrls: input.documentUrls ?? existing?.documentUrls ?? [],
+    imageUrls: input.imageUrls ?? existing?.imageUrls ?? [],
     rejectionReason: input.rejectionReason ?? existing?.rejectionReason,
     verifiableCredential: input.verifiableCredential ?? existing?.verifiableCredential,
   };

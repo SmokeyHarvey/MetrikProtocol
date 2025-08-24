@@ -27,10 +27,6 @@ export const config = createConfig({
   },
 });
 
-type ContractConfig = {
-  address: `0x${string}`;
-  abi: Abi;
-};
 
 export const contracts = {
   staking: {

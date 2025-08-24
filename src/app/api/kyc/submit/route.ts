@@ -9,6 +9,9 @@ export async function POST(request: Request) {
     const address = (formData.get('address') as string | null)?.toLowerCase() || undefined;
     const email = (formData.get('email') as string | null) || undefined;
     const fileNames: string[] = [];
+    const companyName = (formData.get('companyName') as string | null) || undefined;
+    const documentUrls = JSON.parse((formData.get('documentUrls') as string | null) || '[]');
+    const imageUrls = JSON.parse((formData.get('imageUrls') as string | null) || '[]');
 
     // In dev, we just record the filenames; replace with private object storage in prod.
     for (const [key, value] of formData.entries()) {
@@ -26,7 +29,10 @@ export async function POST(request: Request) {
       id,
       email,
       walletAddress: address,
+      companyName,
       documentPaths: fileNames,
+      documentUrls,
+      imageUrls,
       kycStatus: 'pending_review',
       rejectionReason: undefined,
     });
