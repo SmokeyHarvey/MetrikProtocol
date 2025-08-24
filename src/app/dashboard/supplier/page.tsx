@@ -33,9 +33,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
+import { useKyc } from '@/hooks/useKyc';
 
 export default function SupplierDashboard() {
   const { wallets } = useWallets();
+  const { status: kycStatus } = useKyc();
   const { user } = usePrivy();
   const privyWallet = wallets.find(w => w.walletClientType === 'privy' || (w.meta && w.meta.id === 'io.privy.wallet'));
   const address = privyWallet?.address;
@@ -204,6 +206,15 @@ export default function SupplierDashboard() {
           </div>
         </div>
       </div>
+
+      {/* KYC banner */}
+      {kycStatus !== 'verified' && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-800">
+          <div className="font-medium">Complete verification to use all features</div>
+          <div className="text-sm mt-1">Status: {kycStatus.replace('_', ' ')}</div>
+          <Link href="/verification-status" className="inline-block mt-2 text-sm text-indigo-600 underline">View status / submit documents</Link>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

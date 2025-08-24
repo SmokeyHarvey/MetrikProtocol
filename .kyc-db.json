@@ -1,0 +1,46 @@
+[
+  {
+    "id": "0x2daed5dbdfd6d0bad9acb68082d96ea79ed7515d",
+    "walletAddress": "0x2daed5dbdfd6d0bad9acb68082d96ea79ed7515d",
+    "createdAt": 1755644701739,
+    "updatedAt": 1756032608703,
+    "kycStatus": "verified",
+    "documentPaths": [
+      "docs01.png"
+    ],
+    "verifiableCredential": {
+      "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkaWQ6bWV0cmlrOmlzc3VlciIsInN1YiI6ImRpZDpwa2g6ZWlwMTU1OjE6MHgyZGFlZDVkYmRmZDZkMGJhZDlhY2I2ODA4MmQ5NmVhNzllZDc1MTVkIiwiaWF0IjoxNzU2MDMyNjA4LCJtZXRyaWsiOnsia3ljVmVyaWZpZWQiOnRydWUsInZlcmlmaWVkQnkiOiJQcm90b2NvbFZlcmlmaWVyIn19.qbdAL8w9GzZYt8TirQlH1EKOSzXsaAp_pOtdvnwx41I",
+      "payload": {
+        "iss": "did:metrik:issuer",
+        "sub": "did:pkh:eip155:1:0x2daed5dbdfd6d0bad9acb68082d96ea79ed7515d",
+        "iat": 1756032608,
+        "metrik": {
+          "kycVerified": true,
+          "verifiedBy": "ProtocolVerifier"
+        }
+      }
+    }
+  },
+  {
+    "id": "0xc1ccd4bd1597dd69f2236653f551bf2c6c41f49a",
+    "walletAddress": "0xc1ccd4bd1597dd69f2236653f551bf2c6c41f49a",
+    "createdAt": 1756031544705,
+    "updatedAt": 1756031594744,
+    "kycStatus": "verified",
+    "documentPaths": [
+      "docs01.png"
+    ],
+    "verifiableCredential": {
+      "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJkaWQ6bWV0cmlrOmlzc3VlciIsInN1YiI6ImRpZDpwa2g6ZWlwMTU1OjE6MHhjMWNjZDRiZDE1OTdkZDY5ZjIyMzY2NTNmNTUxYmYyYzZjNDFmNDlhIiwiaWF0IjoxNzU2MDMxNTk0LCJtZXRyaWsiOnsia3ljVmVyaWZpZWQiOnRydWUsInZlcmlmaWVkQnkiOiJQcm90b2NvbFZlcmlmaWVyIn19.gICXEAZIDjCd2Ze42-4w5cJQU9wAZDiSIlacZTK-wFo",
+      "payload": {
+        "iss": "did:metrik:issuer",
+        "sub": "did:pkh:eip155:1:0xc1ccd4bd1597dd69f2236653f551bf2c6c41f49a",
+        "iat": 1756031594,
+        "metrik": {
+          "kycVerified": true,
+          "verifiedBy": "ProtocolVerifier"
+        }
+      }
+    }
+  }
+]
