@@ -12,6 +12,7 @@ import { parseAmount, formatAmount } from '@/lib/utils/contracts';
 import { encodeFunctionData, parseUnits } from 'viem';
 import { type Hash } from 'viem';
 import faucetAbi from '@/lib/contracts/abis/Faucet.json';
+import { contracts } from '@/lib/wagmi/config';
 
 export function VerifierStakingInterface() {
   const { address } = useAccount();
@@ -34,8 +35,8 @@ export function VerifierStakingInterface() {
   const [mintAmount, setMintAmount] = useState('');
   const [isMinting, setIsMinting] = useState(false);
 
-  const METRIK_ADDRESS = process.env.NEXT_PUBLIC_METRIK_TOKEN_ADDRESS!;
-  const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS!;
+  const METRIK_ADDRESS = contracts.metrikToken.address as string;
+  const FAUCET_ADDRESS = process.env.NEXT_PUBLIC_FAUCET_ADDRESS;
 
   // Refresh data when address changes
   useEffect(() => {
@@ -106,22 +107,68 @@ export function VerifierStakingInterface() {
       return;
     }
 
+    // Validate addresses to avoid calling with missing "to"
+    const isHexAddress = (v?: string) => !!v && /^0x[a-fA-F0-9]{40}$/.test(v);
+    if (!isHexAddress(FAUCET_ADDRESS)) {
+      toast.error('Faucet address is not configured. Set NEXT_PUBLIC_FAUCET_ADDRESS in your environment.');
+      return;
+    }
+    if (!isHexAddress(METRIK_ADDRESS)) {
+      toast.error('METRIK token address is not configured. Set NEXT_PUBLIC_METRIK_TOKEN_ADDRESS.');
+      return;
+    }
+
+    const decimals = 18;
+    const amt = BigInt(parseUnits(mintAmount, decimals).toString());
     setIsMinting(true);
+    console.log('Minting METRIK...');
     try {
-      const decimals = 18;
-      const amt = BigInt(parseUnits(mintAmount, decimals).toString());
+      // Ensure faucet is a contract on current chain
+      const bytecode = await publicClient.getBytecode({ address: FAUCET_ADDRESS as `0x${string}` });
+      if (!bytecode) {
+        toast.error('Faucet contract not found on this network. Check NEXT_PUBLIC_FAUCET_ADDRESS and chain.');
+        return;
+      }
+
+      // Preflight: ensure faucet is configured for METRIK and has enough balance
+      try {
+        const faucetMetrik = await publicClient.readContract({
+          address: FAUCET_ADDRESS as `0x${string}`,
+          abi: faucetAbi,
+          functionName: 'metrik',
+        });
+        console.log('[Faucet preflight] faucet.metrik =', faucetMetrik);
+        if ((faucetMetrik as string).toLowerCase() !== (METRIK_ADDRESS as string).toLowerCase()) {
+          toast.error('Faucet is configured for a different METRIK token address.');
+          return;
+        }
+        const faucetBalance = (await publicClient.readContract({
+          address: METRIK_ADDRESS as `0x${string}`,
+          abi: contracts.metrikToken.abi,
+          functionName: 'balanceOf',
+          args: [FAUCET_ADDRESS as `0x${string}`],
+        })) as bigint;
+        console.log('[Faucet preflight] faucet METRIK balance =', faucetBalance.toString());
+        if (faucetBalance < amt) {
+          const available = Number(faucetBalance) / 1e18;
+          toast.error(`Faucet has insufficient balance. Available: ${available} METRIK`);
+          return;
+        }
+      } catch (_) {
+        // ignore; will revert with reason anyway
+      }
       
-      // Simulate the transaction first
-      const { request } = await publicClient.simulateContract({
-        account: address as `0x${string}`,
-        address: FAUCET_ADDRESS as `0x${string}`,
+      // Build calldata and submit directly to avoid provider eth_call quirks
+      const data = encodeFunctionData({
         abi: faucetAbi,
         functionName: 'claim',
         args: [METRIK_ADDRESS as `0x${string}`, amt],
       });
-
-      // Execute the transaction
-      const hash = await walletClient.writeContract(request);
+      const hash = await walletClient.sendTransaction({
+        to: FAUCET_ADDRESS as `0x${string}`,
+        data: data as `0x${string}`,
+        value: 0n,
+      });
       
       // Wait for confirmation
       await publicClient.waitForTransactionReceipt({ hash });
@@ -135,7 +182,18 @@ export function VerifierStakingInterface() {
       setMintAmount('');
     } catch (err) {
       console.error('Minting error:', err);
-      toast.error('Minting failed. Please try again.');
+      // Try to decode revert reason for clarity
+      try {
+        const result = await publicClient.call({
+          account: address as `0x${string}`,
+          to: FAUCET_ADDRESS as `0x${string}`,
+          data: encodeFunctionData({ abi: faucetAbi, functionName: 'claim', args: [METRIK_ADDRESS as `0x${string}`, amt] }) as `0x${string}`,
+        });
+        console.log('[Faucet call raw] result =', result);
+      } catch (inner) {
+        console.error('[Faucet call raw] error =', inner);
+      }
+      toast.error('Minting failed. See console for details.');
     } finally {
       setIsMinting(false);
     }

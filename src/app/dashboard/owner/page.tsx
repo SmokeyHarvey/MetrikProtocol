@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Clock, CheckCircle, FileText, Shield, Coins } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { keccak256, toUtf8Bytes } from 'ethers';
+import { Copy } from 'lucide-react';
 
 const CONTRACT_OWNER = process.env.NEXT_PUBLIC_CONTRACT_OWNER?.toLowerCase();
 
@@ -36,6 +37,8 @@ export default function OwnerDashboard() {
   const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [granting, setGranting] = useState(false);
   const [hasStakedTokens, setHasStakedTokens] = useState(false);
+  const [kycPending, setKycPending] = useState<Array<{ id: string; email?: string; walletAddress?: string; documentPaths: string[]; updatedAt: number }>>([]);
+  const [loadingKyc, setLoadingKyc] = useState(false);
 
   useEffect(() => {
     if (address && hasStakedTokens) {
@@ -238,6 +241,124 @@ export default function OwnerDashboard() {
   // Show the main verifier dashboard
   return (
     <div className="space-y-6">
+      {/* KYC Review */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            KYC Review
+          </CardTitle>
+          <CardDescription>Review supplier submissions and approve or reject.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm text-gray-600">Pending submissions: {kycPending.length}</div>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  setLoadingKyc(true);
+                  const res = await fetch('/api/kyc/admin', { cache: 'no-store' });
+                  const data = await res.json();
+                  setKycPending(data.pending || []);
+                } finally {
+                  setLoadingKyc(false);
+                }
+              }}
+            >
+              {loadingKyc ? 'Refreshing...' : 'Refresh'}
+            </Button>
+          </div>
+
+          {kycPending.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No KYC submissions pending review.</div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Business</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Documents</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {kycPending.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-sm">
+                      <div className="font-semibold">{(r as any).companyName || '—'}</div>
+                      <div className="font-mono text-xs text-gray-600 flex items-center gap-2">
+                        <span>{r.id.length > 20 ? `${r.id.slice(0, 8)}...${r.id.slice(-4)}` : r.id}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(r.id)}
+                          className="inline-flex items-center gap-1 text-gray-600 hover:text-gray-900"
+                          title="Copy"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{(r as any).email || '-'}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        {((r as any).imageUrls || []).slice(0,4).map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" className="block w-12 h-12 rounded overflow-hidden border">
+                            <img src={url} alt="doc" className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                        {((r as any).documentUrls || []).slice(0,2).map((url: string, idx: number) => (
+                          <a key={`doc-${idx}`} href={url} target="_blank" className="text-xs underline text-indigo-600">PDF {idx+1}</a>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{new Date((r as any).updatedAt).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={async () => {
+                            const res = await fetch('/api/kyc/admin', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'approve', id: r.id }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) return toast.error(data?.error || 'Approve failed');
+                            toast.success('KYC approved');
+                            setKycPending(prev => prev.filter(x => x.id !== r.id));
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={async () => {
+                            const reason = window.prompt('Reason for rejection?') || 'Not specified';
+                            const res = await fetch('/api/kyc/admin', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'reject', id: r.id, reason }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) return toast.error(data?.error || 'Reject failed');
+                            toast.success('KYC rejected');
+                            setKycPending(prev => prev.filter(x => x.id !== r.id));
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
       {/* Platform Fee Management */}
       <OwnerPlatformFees />
       
